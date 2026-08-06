@@ -1,0 +1,169 @@
+// Prisma schema for Wandering Pins.
+// Semantics follow WANDERING_PINS_BRIEF.md section 5. Do not add fields that
+// aren't in the brief without checking section 7 (public/private boundary) first.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  // Prisma 7 moved connection URLs out of schema.prisma. The CLI (migrate,
+  // introspect) reads its URL from prisma.config.ts; the app's PrismaClient
+  // gets its own connection string via a driver adapter — see src/lib/prisma.ts.
+}
+
+enum PinStatus {
+  MINTED
+  REGISTERED
+}
+
+enum AcquiredVia {
+  BOUGHT
+  TRADED
+  GIFT
+  FOUND
+  OTHER
+}
+
+enum TradeStatus {
+  PENDING
+  CONFIRMED
+  DECLINED
+}
+
+enum PhotoKind {
+  FRONT
+  BACK
+  OTHER
+}
+
+model StickerBatch {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now()) @map("created_at")
+  label     String
+  quantity  Int
+
+  pins Pin[]
+
+  @@map("sticker_batches")
+}
+
+model Pin {
+  id           String    @id @default(cuid())
+  slug         String    @unique
+  status       PinStatus @default(MINTED)
+  batchId      String    @map("batch_id")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  registeredAt DateTime? @map("registered_at")
+
+  batch    StickerBatch @relation(fields: [batchId], references: [id])
+  holdings PinHolding[]
+  trades   Trade[]
+
+  @@map("pins")
+}
+
+model User {
+  id               String   @id @default(cuid())
+  email            String   @unique
+  displayName      String   @map("display_name")
+  createdAt        DateTime @default(now()) @map("created_at")
+  showNamePublicly Boolean  @default(true) @map("show_name_publicly")
+
+  holdings        PinHolding[]
+  tradesInitiated Trade[]      @relation("TradeFromUser")
+  tradesReceived  Trade[]      @relation("TradeToUser")
+
+  @@map("users")
+}
+
+// The journey spine: one row per person-per-stint-with-a-pin.
+// Every field on this model is PUBLIC. See brief section 7 — do not add
+// free-typed or user-uploaded fields here.
+model PinHolding {
+  id          String      @id @default(cuid())
+  pinId       String      @map("pin_id")
+  userId      String      @map("user_id")
+  acquiredAt  DateTime    @map("acquired_at")
+  acquiredVia AcquiredVia @map("acquired_via")
+  placeLabel  String      @map("place_label")
+  lat         Float
+  lng         Float
+  releasedAt  DateTime?   @map("released_at")
+
+  pin  Pin  @relation(fields: [pinId], references: [id])
+  user User @relation(fields: [userId], references: [id])
+
+  note   HoldingNote?
+  photos HoldingPhoto[]
+  title  PinTitle?
+
+  // "At most one open holding per pin" (released_at IS NULL) is enforced by
+  // a partial unique index added in migration SQL — Prisma's schema DSL has
+  // no WHERE clause for @@unique. See prisma/migrations/*_partial_indexes.
+  @@index([pinId])
+  @@index([userId])
+  @@map("pin_holdings")
+}
+
+// Private: readable only by the user who owns the parent holding.
+model HoldingNote {
+  id        String   @id @default(cuid())
+  holdingId String   @unique @map("holding_id")
+  body      String
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  holding PinHolding @relation(fields: [holdingId], references: [id])
+
+  @@map("holding_notes")
+}
+
+// Private: readable only by the user who owns the parent holding.
+// Never rendered on any public page in v1.
+model HoldingPhoto {
+  id        String    @id @default(cuid())
+  holdingId String    @map("holding_id")
+  url       String
+  kind      PhotoKind
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  holding PinHolding @relation(fields: [holdingId], references: [id])
+
+  @@index([holdingId])
+  @@map("holding_photos")
+}
+
+// Private, because it's free-typed. See brief section 7.
+model PinTitle {
+  id        String @id @default(cuid())
+  holdingId String @unique @map("holding_id")
+  title     String
+
+  holding PinHolding @relation(fields: [holdingId], references: [id])
+
+  @@map("pin_titles")
+}
+
+model Trade {
+  id         String      @id @default(cuid())
+  pinId      String      @map("pin_id")
+  fromUserId String      @map("from_user_id")
+  toUserId   String?     @map("to_user_id")
+  toEmail    String?     @map("to_email")
+  status     TradeStatus @default(PENDING)
+  proposedAt DateTime    @default(now()) @map("proposed_at")
+  resolvedAt DateTime?   @map("resolved_at")
+  placeLabel String?     @map("place_label")
+  lat        Float?
+  lng        Float?
+
+  pin      Pin   @relation(fields: [pinId], references: [id])
+  fromUser User  @relation("TradeFromUser", fields: [fromUserId], references: [id])
+  toUser   User? @relation("TradeToUser", fields: [toUserId], references: [id])
+
+  @@index([pinId])
+  @@index([toEmail])
+  @@map("trades")
+}
