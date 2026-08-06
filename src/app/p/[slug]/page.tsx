@@ -2,6 +2,7 @@ import Link from "next/link";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { parseSlug } from "@/lib/slug";
+import { getAuthClaims } from "@/lib/auth";
 import { resolveHolderDisplayName, buildTimeline } from "@/lib/timeline";
 import { PinJourneyTimeline } from "@/components/PinJourneyTimeline";
 import { PinJourneyMap } from "@/components/PinJourneyMap";
@@ -55,6 +56,10 @@ export default async function PinPage({ params }: Props) {
   const lines = buildTimeline(holdings);
   const points = holdings.map((h) => ({ lat: h.lat, lng: h.lng, label: h.placeLabel }));
 
+  const openHolding = pin.holdings.find((h) => h.releasedAt === null);
+  const claims = await getAuthClaims();
+  const isCurrentHolder = !!claims && claims.sub === openHolding?.userId;
+
   return (
     <main className="mx-auto max-w-2xl px-4 py-10">
       <p className="text-sm text-neutral-500">Pin {parsed.slug}</p>
@@ -69,13 +74,27 @@ export default async function PinPage({ params }: Props) {
       </div>
 
       <div className="mt-10 rounded-lg border border-neutral-200 p-4">
-        <p className="text-sm text-neutral-700">Think you have this pin now?</p>
-        <Link
-          href={`/register/${parsed.slug}`}
-          className="mt-2 inline-block rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
-        >
-          Claim this pin
-        </Link>
+        {isCurrentHolder ? (
+          <>
+            <p className="text-sm text-neutral-700">This pin is currently in your hands.</p>
+            <Link
+              href={`/trade/${parsed.slug}`}
+              className="mt-2 inline-block rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+            >
+              Log a trade
+            </Link>
+          </>
+        ) : (
+          <>
+            <p className="text-sm text-neutral-700">Think you have this pin now?</p>
+            <Link
+              href={`/register/${parsed.slug}`}
+              className="mt-2 inline-block rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+            >
+              Claim this pin
+            </Link>
+          </>
+        )}
       </div>
     </main>
   );
