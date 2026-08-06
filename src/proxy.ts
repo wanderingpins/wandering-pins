@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { buildRedirectUrl, isRedirectorHost } from "@/wpins-redirect";
 import { normalizeSlugInput } from "@/lib/slug";
+import { updateSession } from "@/lib/supabase/proxy";
 
 const PIN_PATH = /^\/p\/([^/]+)$/;
 
@@ -8,7 +9,7 @@ const PIN_PATH = /^\/p\/([^/]+)$/;
 // wanderingpins.com (the real app). 302, not 301 — see brief section 3 for
 // why (a 301 would be cached forever and we'd lose the ability to repoint a
 // code if a sticker batch ever needs it).
-export function proxy(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const host = request.headers.get("host") ?? "";
   if (isRedirectorHost(host)) {
     return NextResponse.redirect(buildRedirectUrl(request.nextUrl.pathname), 302);
@@ -26,7 +27,7 @@ export function proxy(request: NextRequest) {
     }
   }
 
-  return NextResponse.next();
+  return updateSession(request);
 }
 
 export const config = {

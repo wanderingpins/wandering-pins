@@ -65,8 +65,10 @@ model Pin {
   @@map("pins")
 }
 
+// id is the Supabase Auth user's UUID directly (no separate default) — one
+// identity shared across both systems, no id-mapping table to keep in sync.
 model User {
-  id               String   @id @default(cuid())
+  id               String   @id
   email            String   @unique
   displayName      String   @map("display_name")
   createdAt        DateTime @default(now()) @map("created_at")
