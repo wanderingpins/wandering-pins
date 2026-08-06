@@ -148,6 +148,21 @@ model PinTitle {
   @@map("pin_titles")
 }
 
+// Rate-limiting /p/{slug} by IP (brief section 8) — the compensating
+// control for spending a check-digit character on error detection rather
+// than on entropy, since the ~1B keyspace is otherwise scrapeable by brute
+// force. Fixed 60s windows per IP; not modeled as a relation to anything.
+model RateLimitHit {
+  id          String   @id @default(cuid())
+  ip          String
+  windowStart DateTime @map("window_start")
+  count       Int      @default(1)
+
+  @@unique([ip, windowStart])
+  @@index([windowStart])
+  @@map("rate_limit_hits")
+}
+
 model Trade {
   id         String      @id @default(cuid())
   pinId      String      @map("pin_id")

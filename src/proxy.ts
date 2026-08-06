@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { buildRedirectUrl, isRedirectorHost } from "@/wpins-redirect";
 import { normalizeSlugInput } from "@/lib/slug";
 import { updateSession } from "@/lib/supabase/proxy";
+import { getClientIp, isRateLimited } from "@/lib/rate-limit";
 
 const PIN_PATH = /^\/p\/([^/]+)$/;
 
@@ -24,6 +25,16 @@ export async function proxy(request: NextRequest) {
     const normalized = normalizeSlugInput(match[1]);
     if (normalized !== match[1]) {
       return NextResponse.redirect(new URL(`/p/${normalized}`, request.url), 302);
+    }
+
+    // Compensating control for the check-digit spending a character on
+    // error detection rather than entropy (brief section 8) — a ~1B
+    // keyspace is otherwise scrapeable by sequential/random guessing.
+    if (await isRateLimited(getClientIp(request.headers))) {
+      return new NextResponse("Too many requests — please slow down and try again in a minute.", {
+        status: 429,
+        headers: { "Content-Type": "text/plain", "Retry-After": "60" },
+      });
     }
   }
 
