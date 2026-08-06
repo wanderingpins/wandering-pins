@@ -15,16 +15,16 @@ export async function sendMagicLink(
   }
 
   const next = formData.get("next");
-  const confirmUrl = new URL("/auth/confirm", process.env.NEXT_PUBLIC_APP_URL);
-  if (typeof next === "string" && next) {
-    confirmUrl.searchParams.set("next", next);
-  }
+  // The Magic Link email template appends this as `&next=` on the
+  // token_hash confirmation URL itself (via {{ .RedirectTo }}) — so this is
+  // the final destination, not a URL to /auth/confirm.
+  const destinationUrl = new URL(typeof next === "string" && next ? next : "/", process.env.NEXT_PUBLIC_APP_URL);
 
   const supabase = await createClient();
   const { error } = await supabase.auth.signInWithOtp({
     email: parsed.data,
     options: {
-      emailRedirectTo: confirmUrl.toString(),
+      emailRedirectTo: destinationUrl.toString(),
     },
   });
 
