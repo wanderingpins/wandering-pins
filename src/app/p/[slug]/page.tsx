@@ -3,7 +3,8 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { parseSlug } from "@/lib/slug";
 import { getAuthClaims } from "@/lib/auth";
-import { resolveHolderDisplayName, buildTimeline } from "@/lib/timeline";
+import { buildTimeline } from "@/lib/timeline";
+import { toPublicHolding } from "@/lib/public-pin";
 import { PinJourneyTimeline } from "@/components/PinJourneyTimeline";
 import { PinJourneyMap } from "@/components/PinJourneyMap";
 
@@ -44,15 +45,7 @@ export default async function PinPage({ params }: Props) {
     return <UnregisteredPin slug={parsed.slug} />;
   }
 
-  const holdings = pin.holdings.map((h) => ({
-    acquiredAt: h.acquiredAt,
-    acquiredVia: h.acquiredVia,
-    placeLabel: h.placeLabel,
-    holderDisplayName: resolveHolderDisplayName(h.user),
-    lat: h.lat,
-    lng: h.lng,
-    isOpen: h.releasedAt === null,
-  }));
+  const holdings = pin.holdings.map(toPublicHolding);
   const lines = buildTimeline(holdings);
   const points = holdings.map((h) => ({ lat: h.lat, lng: h.lng, label: h.placeLabel }));
 
