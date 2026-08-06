@@ -1,0 +1,84 @@
+import Link from "next/link";
+import { prisma } from "@/lib/prisma";
+import { requireAppUser } from "@/lib/auth";
+import { formatMonthYear } from "@/lib/timeline";
+
+export default async function MyPinsPage() {
+  const user = await requireAppUser("/my-pins");
+
+  const holdings = await prisma.pinHolding.findMany({
+    where: { userId: user.id },
+    include: { pin: true },
+    orderBy: { acquiredAt: "desc" },
+  });
+
+  const currentlyHave = holdings.filter((h) => h.releasedAt === null);
+  const everHad = holdings;
+
+  return (
+    <main className="mx-auto max-w-2xl px-4 py-10">
+      <h1 className="text-2xl font-semibold">My pins</h1>
+
+      <section className="mt-8">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-500">
+          Currently have
+        </h2>
+        {currentlyHave.length === 0 ? (
+          <p className="mt-3 text-neutral-600">Nothing right now — scan a pin to register one.</p>
+        ) : (
+          <ul className="mt-3 divide-y divide-neutral-200">
+            {currentlyHave.map((h) => (
+              <HoldingRow key={h.id} slug={h.pin.slug} placeLabel={h.placeLabel} acquiredAt={h.acquiredAt} />
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <section className="mt-10">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-500">
+          Ever had
+        </h2>
+        {everHad.length === 0 ? (
+          <p className="mt-3 text-neutral-600">No pins yet.</p>
+        ) : (
+          <ul className="mt-3 divide-y divide-neutral-200">
+            {everHad.map((h) => (
+              <HoldingRow
+                key={h.id}
+                slug={h.pin.slug}
+                placeLabel={h.placeLabel}
+                acquiredAt={h.acquiredAt}
+                released={h.releasedAt !== null}
+              />
+            ))}
+          </ul>
+        )}
+      </section>
+    </main>
+  );
+}
+
+function HoldingRow({
+  slug,
+  placeLabel,
+  acquiredAt,
+  released,
+}: {
+  slug: string;
+  placeLabel: string;
+  acquiredAt: Date;
+  released?: boolean;
+}) {
+  return (
+    <li className="py-3">
+      <Link href={`/p/${slug}`} className="flex items-center justify-between hover:underline">
+        <span>
+          {placeLabel} · {formatMonthYear(acquiredAt)}
+        </span>
+        {released && (
+          <span className="text-sm text-neutral-500">see where it went &rarr;</span>
+        )}
+      </Link>
+    </li>
+  );
+}
