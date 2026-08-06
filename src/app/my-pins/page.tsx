@@ -28,7 +28,7 @@ export default async function MyPinsPage() {
         ) : (
           <ul className="mt-3 divide-y divide-neutral-200">
             {currentlyHave.map((h) => (
-              <HoldingRow key={h.id} slug={h.pin.slug} placeLabel={h.placeLabel} acquiredAt={h.acquiredAt} />
+              <HoldingRow key={h.id} id={h.id} slug={h.pin.slug} placeLabel={h.placeLabel} acquiredAt={h.acquiredAt} />
             ))}
           </ul>
         )}
@@ -45,6 +45,7 @@ export default async function MyPinsPage() {
             {everHad.map((h) => (
               <HoldingRow
                 key={h.id}
+                id={h.id}
                 slug={h.pin.slug}
                 placeLabel={h.placeLabel}
                 acquiredAt={h.acquiredAt}
@@ -59,26 +60,33 @@ export default async function MyPinsPage() {
 }
 
 function HoldingRow({
+  id,
   slug,
   placeLabel,
   acquiredAt,
   released,
 }: {
+  id: string;
   slug: string;
   placeLabel: string;
   acquiredAt: Date;
   released?: boolean;
 }) {
   return (
-    <li className="py-3">
-      <Link href={`/p/${slug}`} className="flex items-center justify-between hover:underline">
-        <span>
-          {placeLabel} · {formatMonthYear(acquiredAt)}
-        </span>
-        {released && (
-          <span className="text-sm text-neutral-500">see where it went &rarr;</span>
-        )}
+    <li className="flex items-center justify-between py-3">
+      <Link href={`/p/${slug}`} className="hover:underline">
+        {placeLabel} · {formatMonthYear(acquiredAt)}
       </Link>
+      <span className="flex items-center gap-3 text-sm">
+        <Link href={`/holdings/${id}`} className="text-neutral-500 hover:text-black">
+          notes &amp; photos
+        </Link>
+        {released && (
+          <Link href={`/p/${slug}`} className="text-neutral-500 hover:text-black">
+            see where it went &rarr;
+          </Link>
+        )}
+      </span>
     </li>
   );
 }
