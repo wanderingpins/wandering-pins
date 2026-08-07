@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react";
 import { Map, Marker, Popup, LngLatBounds } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
-import { getMapStyleUrl } from "@/lib/map-config";
+import { ensureMapWorkerConfigured, getMapStyleUrl } from "@/lib/map-config";
 
 export type JourneyPoint = {
   lat: number;
@@ -18,6 +18,7 @@ export function PinJourneyMap({ points }: { points: JourneyPoint[] }) {
   useEffect(() => {
     if (!containerRef.current || points.length === 0) return;
 
+    ensureMapWorkerConfigured();
     const map = new Map({
       container: containerRef.current,
       style: getMapStyleUrl(),
