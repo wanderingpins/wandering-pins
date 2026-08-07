@@ -1,10 +1,16 @@
 import QRCode from "qrcode";
 
-// Brief section 9: encode exactly this, uppercase, no scheme, no www.
-// "WPINS.CO/" is 9 chars; Version 1 at ECC Q holds 16 — exactly 7 left for
-// the slug. There is no slack, which is why version is forced below rather
-// than left to auto-select.
-const DOMAIN_PREFIX = "WPINS.CO/";
+// Deliberate deviation from the original brief (which specified no scheme
+// and no www to save characters): a real-device test found that Android's
+// default Camera app does NOT reliably recognise a schemeless, non-www,
+// all-caps string as a link — it falls back to a failed Google search of
+// the literal text instead of offering to open it. Confirmed on-device
+// that adding "WWW." fixes recognition, at the same physical/module size
+// (still Version 1, just ECC M instead of Q to fit the extra 4 characters —
+// see ERROR_CORRECTION_LEVEL below). "WWW.WPINS.CO/" is 13 chars; Version 1
+// at ECC M holds 20 — exactly 7 left for the slug, still zero slack.
+const DOMAIN_PREFIX = "WWW.WPINS.CO/";
+const ERROR_CORRECTION_LEVEL = "M";
 
 export function buildQrPayload(slug: string): string {
   return `${DOMAIN_PREFIX}${slug.toUpperCase()}`;
@@ -17,7 +23,7 @@ export function buildQrPayload(slug: string): string {
 export async function generatePinQrPng(slug: string): Promise<Buffer> {
   return QRCode.toBuffer(buildQrPayload(slug), {
     version: 1,
-    errorCorrectionLevel: "Q",
+    errorCorrectionLevel: ERROR_CORRECTION_LEVEL,
     type: "png",
   });
 }
@@ -26,5 +32,5 @@ export async function generatePinQrPng(slug: string): Promise<Buffer> {
 // version forced. If this ever drifts above 1, generatePinQrPng above will
 // start throwing — this is the canary that explains why, before it does.
 export function getRequiredQrVersion(slug: string): number {
-  return QRCode.create(buildQrPayload(slug), { errorCorrectionLevel: "Q" }).version;
+  return QRCode.create(buildQrPayload(slug), { errorCorrectionLevel: ERROR_CORRECTION_LEVEL }).version;
 }

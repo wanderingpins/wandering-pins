@@ -3,12 +3,14 @@ import { buildQrPayload, generatePinQrPng, getRequiredQrVersion } from "./qr";
 import { generateSlug } from "./slug";
 
 describe("buildQrPayload", () => {
-  it("matches the brief's worked example exactly", () => {
-    expect(buildQrPayload("K7M2QX9")).toBe("WPINS.CO/K7M2QX9");
+  // WWW. prefix is a deliberate deviation from the brief's original
+  // no-www spec — see comment in qr.ts for why.
+  it("includes the www prefix", () => {
+    expect(buildQrPayload("K7M2QX9")).toBe("WWW.WPINS.CO/K7M2QX9");
   });
 
   it("uppercases the slug", () => {
-    expect(buildQrPayload("k7m2qx9")).toBe("WPINS.CO/K7M2QX9");
+    expect(buildQrPayload("k7m2qx9")).toBe("WWW.WPINS.CO/K7M2QX9");
   });
 });
 
