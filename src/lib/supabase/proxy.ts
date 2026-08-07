@@ -35,12 +35,12 @@ export async function updateSession(request: NextRequest) {
   return supabaseResponse;
 }
 
-// Supabase's actual Magic Link template (confirmed against a real sent
-// email — a dashboard template edit intended to switch this to the
-// token_hash flow apparently never saved) sends users through Supabase's
-// own /auth/v1/verify, which lands the PKCE `code` directly on the Site URL
-// — this project's homepage — not on /auth/confirm. Rather than depend on
-// that dashboard edit, handle a stray `code` wherever it lands.
+// The default Magic Link template routes through Supabase's own
+// /auth/v1/verify, which lands the PKCE `code` (or an error) directly on
+// the Site URL — this project's homepage — rather than on /auth/confirm.
+// That behavior depends on dashboard email-template configuration rather
+// than anything this app controls, so handle a stray `code`/`error`
+// wherever it shows up instead of assuming a specific template is active.
 export async function exchangeStrayAuthCode(request: NextRequest): Promise<NextResponse | null> {
   const code = request.nextUrl.searchParams.get("code");
   const authError = request.nextUrl.searchParams.get("error");

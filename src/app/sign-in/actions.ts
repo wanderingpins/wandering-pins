@@ -15,9 +15,9 @@ export async function sendMagicLink(
   }
 
   const next = formData.get("next");
-  // The Magic Link email template appends this as `&next=` on the
-  // token_hash confirmation URL itself (via {{ .RedirectTo }}) — so this is
-  // the final destination, not a URL to /auth/confirm.
+  // Becomes Supabase's `redirect_to` — where the confirmation link sends
+  // the browser after verification (see exchangeStrayAuthCode in
+  // src/lib/supabase/proxy.ts for what happens on arrival).
   const destinationUrl = new URL(typeof next === "string" && next ? next : "/", process.env.NEXT_PUBLIC_APP_URL);
 
   const supabase = await createClient();
@@ -29,11 +29,12 @@ export async function sendMagicLink(
   });
 
   if (error) {
-    console.error("signInWithOtp failed", { status: error.status, code: error.code, message: error.message, destinationUrl: destinationUrl.toString() });
-    // TEMPORARY: showing Supabase's actual error (safe pre-launch, no real
-    // users yet) instead of guessing blind between rate-limit / disallowed
-    // redirect URL / outage. Tighten this back up before real traffic.
-    return { status: "error", message: `${error.message} (code: ${error.code ?? "unknown"})` };
+    console.error("signInWithOtp failed", { status: error.status, code: error.code, message: error.message });
+    const message =
+      error.code === "over_email_send_rate_limit"
+        ? "You've requested a few of these already — wait about a minute and try again."
+        : "Couldn't send that link — please try again.";
+    return { status: "error", message };
   }
   return { status: "sent" };
 }

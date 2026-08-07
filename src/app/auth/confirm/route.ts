@@ -3,18 +3,19 @@ import { NextResponse, type NextRequest } from "next/server";
 import type { EmailOtpType } from "@supabase/supabase-js";
 
 // Handles both link shapes Supabase can send: the PKCE `code` param
-// (exchangeCodeForSession — this project's actual default, confirmed by
-// testing a real magic link) and the `token_hash`+`type` param (verifyOtp —
-// used if the email template is customised to send a token hash instead).
+// (exchangeCodeForSession — this project's default confirmation flow) and
+// the `token_hash`+`type` param (verifyOtp — used if the email template is
+// customised to send a token hash instead). Note: Supabase's default
+// confirmation flow actually routes through its own /auth/v1/verify first,
+// which lands the `code` on the Site URL rather than here — see
+// exchangeStrayAuthCode in src/lib/supabase/proxy.ts for that path. This
+// route still handles a `code` directly in case that ever changes.
 //
 // Builds the redirect response explicitly and attaches cookies directly to
 // it, rather than going through next/headers' cookies() + redirect() (which
-// throws internally). A large session gets chunked across multiple sb-*
-// cookies, and this project's sessions are big enough to need it — the
-// throw-based path was never proven to flush more than one queued
-// Set-Cookie header before being caught, only ever tested with a single
-// unchunked cookie. This mirrors the pattern already proven to work in
-// src/lib/supabase/proxy.ts.
+// throws internally) — a session large enough to chunk across multiple
+// sb-* cookies needs every chunk's Set-Cookie header to land on the same
+// response object, which the throw-based path doesn't guarantee.
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const code = searchParams.get("code");

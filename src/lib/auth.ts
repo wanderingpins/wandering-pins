@@ -10,12 +10,7 @@ export async function getAuthClaims() {
   const supabase = await createClient();
   const { data, error } = await supabase.auth.getClaims();
   if (error) {
-    // TEMPORARY: diagnosing "cookie present, but not recognized as signed
-    // in" in production. Revert once resolved.
-    console.error("getClaims failed despite a cookie being present", {
-      message: error.message,
-      code: (error as { code?: string }).code,
-    });
+    console.error("getClaims failed", { message: error.message, code: (error as { code?: string }).code });
   }
   return data?.claims ?? null;
 }
