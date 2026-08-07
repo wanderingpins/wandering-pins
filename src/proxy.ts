@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { buildRedirectUrl, isRedirectorHost } from "@/wpins-redirect";
 import { normalizeSlugInput } from "@/lib/slug";
-import { updateSession } from "@/lib/supabase/proxy";
+import { exchangeStrayAuthCode, updateSession } from "@/lib/supabase/proxy";
 import { getClientIp, isRateLimited } from "@/lib/rate-limit";
 
 const PIN_PATH = /^\/p\/([^/]+)$/;
@@ -14,6 +14,14 @@ export async function proxy(request: NextRequest) {
   const host = request.headers.get("host") ?? "";
   if (isRedirectorHost(host)) {
     return NextResponse.redirect(buildRedirectUrl(request.nextUrl.pathname), 302);
+  }
+
+  // Supabase's actual confirmation flow lands a PKCE `code` on the Site URL
+  // directly rather than on /auth/confirm (see exchangeStrayAuthCode) — skip
+  // this on /auth/confirm itself so its own route handler manages that case.
+  if (request.nextUrl.pathname !== "/auth/confirm") {
+    const strayCodeResponse = await exchangeStrayAuthCode(request);
+    if (strayCodeResponse) return strayCodeResponse;
   }
 
   // Canonicalisation on the app itself (brief section 4): someone can land
