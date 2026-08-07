@@ -29,7 +29,11 @@ export async function sendMagicLink(
   });
 
   if (error) {
-    return { status: "error", message: "Couldn't send that link — please try again." };
+    console.error("signInWithOtp failed", { status: error.status, code: error.code, message: error.message, destinationUrl: destinationUrl.toString() });
+    // TEMPORARY: showing Supabase's actual error (safe pre-launch, no real
+    // users yet) instead of guessing blind between rate-limit / disallowed
+    // redirect URL / outage. Tighten this back up before real traffic.
+    return { status: "error", message: `${error.message} (code: ${error.code ?? "unknown"})` };
   }
   return { status: "sent" };
 }
