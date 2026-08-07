@@ -16,7 +16,12 @@ function roundCoarse(n: number): number {
 
 export async function geocodePlace(query: string): Promise<GeocodedPlace | null> {
   const key = process.env.NEXT_PUBLIC_MAPTILER_API_KEY;
-  const url = `https://api.maptiler.com/geocoding/${encodeURIComponent(query)}.json?key=${key}&types=place&limit=1`;
+  // types=place alone silently misses any US "consolidated city-county"
+  // (Denver, San Francisco, Nashville, ...) — MapTiler tags those as
+  // `county`, not `place`, so a query for one of them would otherwise match
+  // whatever same-named suburb or hamlet elsewhere in the world happens to
+  // carry the `place` tag instead of the actual well-known city.
+  const url = `https://api.maptiler.com/geocoding/${encodeURIComponent(query)}.json?key=${key}&types=place,municipality,county,locality&limit=1`;
 
   const res = await fetch(url);
   if (!res.ok) return null;

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { requireAppUser } from "@/lib/auth";
 import { formatMonthYear } from "@/lib/timeline";
+import { PinLookupForm } from "@/components/PinLookupForm";
 
 export default async function MyPinsPage() {
   const user = await requireAppUser("/my-pins");
@@ -19,12 +20,22 @@ export default async function MyPinsPage() {
     <main className="mx-auto max-w-2xl px-4 py-10">
       <h1 className="text-2xl font-semibold">My pins</h1>
 
+      <section className="mt-6 rounded-lg border border-neutral-200 p-4">
+        <h2 className="text-sm font-semibold text-neutral-700">Got a new pin?</h2>
+        <p className="mt-1 text-sm text-neutral-600">
+          Scan the code on the back, or type it below, to register it to your account.
+        </p>
+        <div className="mt-3 max-w-sm">
+          <PinLookupForm />
+        </div>
+      </section>
+
       <section className="mt-8">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-500">
           Currently have
         </h2>
         {currentlyHave.length === 0 ? (
-          <p className="mt-3 text-neutral-600">Nothing right now — scan a pin to register one.</p>
+          <p className="mt-3 text-neutral-600">Nothing right now.</p>
         ) : (
           <ul className="mt-3 divide-y divide-neutral-200">
             {currentlyHave.map((h) => (
