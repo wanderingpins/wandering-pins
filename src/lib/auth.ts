@@ -8,7 +8,15 @@ import type { User } from "@/generated/prisma/client";
 // if there's no signed-in user.
 export async function getAuthClaims() {
   const supabase = await createClient();
-  const { data } = await supabase.auth.getClaims();
+  const { data, error } = await supabase.auth.getClaims();
+  if (error) {
+    // TEMPORARY: diagnosing "cookie present, but not recognized as signed
+    // in" in production. Revert once resolved.
+    console.error("getClaims failed despite a cookie being present", {
+      message: error.message,
+      code: (error as { code?: string }).code,
+    });
+  }
   return data?.claims ?? null;
 }
 
