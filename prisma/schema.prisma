@@ -67,10 +67,22 @@ model Pin {
 
 // id is the Supabase Auth user's UUID directly (no separate default) — one
 // identity shared across both systems, no id-mapping table to keep in sync.
+//
+// username is nullable — Postgres unique indexes allow multiple NULLs, so
+// everyone mid-onboarding can sit at username = null without colliding with
+// each other. requireAppUser (src/lib/auth.ts) redirects anyone with a null
+// username to /onboarding before letting them reach any protected page — by
+// the time a user shows up on any PinHolding, their username is guaranteed
+// non-null. firstName/lastName/city are never rendered on any public page
+// (brief section 7) — username is the only public identity, in the same
+// showNamePublicly-gated slot displayName used to occupy.
 model User {
   id               String   @id
   email            String   @unique
-  displayName      String   @map("display_name")
+  username         String?  @unique
+  firstName        String?  @map("first_name")
+  lastName         String?  @map("last_name")
+  city             String?
   createdAt        DateTime @default(now()) @map("created_at")
   showNamePublicly Boolean  @default(true) @map("show_name_publicly")
 

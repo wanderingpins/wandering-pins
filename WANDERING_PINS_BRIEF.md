@@ -185,8 +185,11 @@ a code came from.
 
 | field | notes |
 |---|---|
-| `id`, `email`, `display_name`, `created_at` | |
-| `show_name_publicly` | boolean, default true |
+| `id`, `email`, `created_at` | |
+| `username` | unique, nullable — null until onboarding is completed (section 6.2); this is the public identity, replacing the old auto-generated display name |
+| `first_name`, `last_name` | optional, private — never rendered on any public page |
+| `city` | optional, private — where they live, never rendered on any public page |
+| `show_name_publicly` | boolean, default true — gates whether `username` or "a collector" shows on the public journey |
 
 ### `pin_holdings` — the journey spine
 
@@ -291,10 +294,20 @@ Two states:
 **Design note.** With no photo and no free text, the map and timeline carry this page alone. Invest
 the visual effort there — this is the one screen that has to charm a stranger in about four seconds.
 
-### 6.2 Sign in
+### 6.2 Sign in and onboarding
 
-Email magic link. No passwords, no social login. Signing in is required for everything except the
-public pin page.
+Email magic link, or email+password once a password has been set. No social login. Signing in is
+required for everything except the public pin page.
+
+A brand-new sign-in has no `username` yet, and picking a unique one can't be guessed — so the first
+time anyone reaches a protected page with `username = null`, they're redirected to onboard first
+(then sent on to wherever they were headed). Onboarding collects: a unique username, a **required**
+password, and optionally first name, last name, and city.
+
+The required password exists so an account never depends solely on continued access to one inbox —
+if someone changes jobs or loses an old email address, they can still sign in with their password
+and update their email from settings. If they instead forget their *password* but still have their
+email, magic-link sign-in is the recovery path — no separate "forgot password" flow is needed.
 
 ### 6.3 Register a pin
 
@@ -330,6 +343,19 @@ Authenticated, scoped to one of your own holdings. Add and edit a blurb, a title
 Visible only to you. Make the privacy obvious in the UI — a small persistent "only you can see this"
 affordance, not a one-time tooltip.
 
+### 6.7 Account settings
+
+Authenticated, self-only — there is no public profile page for viewing *other* users' settings, just
+this one page for editing your own. Two independent forms:
+
+- **Profile**: username, first/last name, city. Username changes hit the same uniqueness constraint
+  as onboarding.
+- **Email**: request a change to a new address. Nothing changes until the confirmation link sent to
+  the *new* address is clicked — the UI must say so, not imply it's instant. Because this uses
+  Supabase's real account-level email change rather than just signing in with a different address,
+  the same underlying identity (and so the same collection) carries over; signing in with a
+  different email instead of using this flow creates an unrelated new, empty account.
+
 ---
 
 ## 7. What is public, and what is not
@@ -340,7 +366,7 @@ This section is a hard boundary. Do not soften it without an explicit product de
 
 - The pin's slug
 - Its holdings: acquisition method, coarse city, date
-- Holder display names, subject to `show_name_publicly`
+- Holder usernames, subject to `show_name_publicly`
 
 That is the complete list, and every item is **structured** — chosen from an enum, derived from a
 geocoder, or a date. **No user-typed text and no user-uploaded images appear on any public page.**

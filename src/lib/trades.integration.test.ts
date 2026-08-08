@@ -75,10 +75,10 @@ describe("decoupled trade claim/release lifecycle", () => {
     cleanup.pinId = pin.id;
 
     const sender = await prisma.user.create({
-      data: { id: randomUUID(), email: `sender-${randomUUID()}@example.com`, displayName: "Sender" },
+      data: { id: randomUUID(), email: `sender-${randomUUID()}@example.com`, username: `sender_${randomUUID().slice(0, 8)}` },
     });
     const recipient = await prisma.user.create({
-      data: { id: randomUUID(), email: `recipient-${randomUUID()}@example.com`, displayName: "Recipient" },
+      data: { id: randomUUID(), email: `recipient-${randomUUID()}@example.com`, username: `recipient_${randomUUID().slice(0, 8)}` },
     });
     cleanup.userIds.push(sender.id, recipient.id);
 

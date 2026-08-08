@@ -24,7 +24,7 @@ type HoldingLike = {
   lat: number;
   lng: number;
   releasedAt: Date | null;
-  user: { displayName: string; showNamePublicly: boolean };
+  user: { username: string | null; showNamePublicly: boolean };
 };
 
 export function toPublicHolding(holding: HoldingLike): PublicHolding {

@@ -30,10 +30,10 @@ describe("getOwnedHolding", () => {
     cleanup.pinId = pin.id;
 
     const owner = await prisma.user.create({
-      data: { id: randomUUID(), email: `owner-${randomUUID()}@example.com`, displayName: "Owner" },
+      data: { id: randomUUID(), email: `owner-${randomUUID()}@example.com`, username: `owner_${randomUUID().slice(0, 8)}` },
     });
     const stranger = await prisma.user.create({
-      data: { id: randomUUID(), email: `stranger-${randomUUID()}@example.com`, displayName: "Stranger" },
+      data: { id: randomUUID(), email: `stranger-${randomUUID()}@example.com`, username: `stranger_${randomUUID().slice(0, 8)}` },
     });
     cleanup.userIds.push(owner.id, stranger.id);
 

@@ -104,7 +104,7 @@ export default async function PinPage({ params }: Props) {
           <>
             <p className="text-sm text-neutral-700">
               You traded this pin to{" "}
-              {pendingOutgoingTrade?.toUser?.displayName ?? pendingOutgoingTrade?.toEmail ?? "someone"} —
+              {pendingOutgoingTrade?.toUser?.username ?? pendingOutgoingTrade?.toEmail ?? "someone"} —
               they&apos;ve already added it to their collection. Confirm below once it&apos;s physically
               left your hands.
             </p>

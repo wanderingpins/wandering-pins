@@ -14,6 +14,9 @@ export async function SiteHeader() {
           <Link href="/my-pins" className="text-sm font-medium text-neutral-700 hover:text-black">
             My pins
           </Link>
+          <Link href="/settings" className="text-sm font-medium text-neutral-700 hover:text-black">
+            Settings
+          </Link>
           <form action="/auth/sign-out" method="post" className="flex items-center gap-3">
             <span className="text-sm text-neutral-600">{claims.email}</span>
             <button type="submit" className="text-sm font-medium text-neutral-700 hover:text-black">

@@ -33,7 +33,7 @@ describe("initiateTrade's one-live-offer guard", () => {
     cleanup.pinId = pin.id;
 
     const giver = await prisma.user.create({
-      data: { id: randomUUID(), email: `giver-${randomUUID()}@example.com`, displayName: "Giver" },
+      data: { id: randomUUID(), email: `giver-${randomUUID()}@example.com`, username: `giver_${randomUUID().slice(0, 8)}` },
     });
     cleanup.userIds.push(giver.id);
 

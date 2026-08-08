@@ -18,12 +18,12 @@ async function main() {
   const tim = await prisma.user.upsert({
     where: { email: "tim@example.com" },
     update: {},
-    create: { id: randomUUID(), email: "tim@example.com", displayName: "Tim" },
+    create: { id: randomUUID(), email: "tim@example.com", username: "tim" },
   });
   const sarah = await prisma.user.upsert({
     where: { email: "sarah@example.com" },
     update: {},
-    create: { id: randomUUID(), email: "sarah@example.com", displayName: "Sarah" },
+    create: { id: randomUUID(), email: "sarah@example.com", username: "sarah" },
   });
   const kenji = await prisma.user.upsert({
     where: { email: "kenji@example.com" },
@@ -31,7 +31,7 @@ async function main() {
     create: {
       id: randomUUID(),
       email: "kenji@example.com",
-      displayName: "Kenji",
+      username: "kenji",
       showNamePublicly: false,
     },
   });

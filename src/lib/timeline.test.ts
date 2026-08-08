@@ -54,11 +54,15 @@ describe("buildTimeline", () => {
 });
 
 describe("resolveHolderDisplayName", () => {
-  it("shows the display name when opted in", () => {
-    expect(resolveHolderDisplayName({ displayName: "Tim", showNamePublicly: true })).toBe("Tim");
+  it("shows the username when opted in", () => {
+    expect(resolveHolderDisplayName({ username: "tim", showNamePublicly: true })).toBe("tim");
   });
 
   it("falls back to 'a collector' when opted out", () => {
-    expect(resolveHolderDisplayName({ displayName: "Tim", showNamePublicly: false })).toBe("a collector");
+    expect(resolveHolderDisplayName({ username: "tim", showNamePublicly: false })).toBe("a collector");
+  });
+
+  it("falls back to 'a collector' if username is somehow still null", () => {
+    expect(resolveHolderDisplayName({ username: null, showNamePublicly: true })).toBe("a collector");
   });
 });

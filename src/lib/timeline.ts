@@ -34,6 +34,9 @@ export function buildTimeline(holdings: TimelineHolding[]): string[] {
   return holdings.map(holdingToProse);
 }
 
-export function resolveHolderDisplayName(user: { displayName: string; showNamePublicly: boolean }): string {
-  return user.showNamePublicly ? user.displayName : "a collector";
+// username is guaranteed non-null for anyone who's ever held a pin — holding
+// one requires having passed requireAppUser's onboarding gate (src/lib/auth.ts)
+// first — but typed nullable to match the schema, with a defensive fallback.
+export function resolveHolderDisplayName(user: { username: string | null; showNamePublicly: boolean }): string {
+  return user.showNamePublicly && user.username ? user.username : "a collector";
 }

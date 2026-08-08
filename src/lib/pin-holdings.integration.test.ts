@@ -30,10 +30,10 @@ describe("pin_holdings open-holding constraint", () => {
     cleanup.pinId = pin.id;
 
     const userA = await prisma.user.create({
-      data: { id: randomUUID(), email: `a-${randomUUID()}@example.com`, displayName: "A" },
+      data: { id: randomUUID(), email: `a-${randomUUID()}@example.com`, username: `a_${randomUUID().slice(0, 8)}` },
     });
     const userB = await prisma.user.create({
-      data: { id: randomUUID(), email: `b-${randomUUID()}@example.com`, displayName: "B" },
+      data: { id: randomUUID(), email: `b-${randomUUID()}@example.com`, username: `b_${randomUUID().slice(0, 8)}` },
     });
     cleanup.userIds.push(userA.id, userB.id);
 
@@ -77,10 +77,10 @@ describe("pin_holdings open-holding constraint", () => {
     cleanup.pinId = pin.id;
 
     const userA = await prisma.user.create({
-      data: { id: randomUUID(), email: `a-${randomUUID()}@example.com`, displayName: "A" },
+      data: { id: randomUUID(), email: `a-${randomUUID()}@example.com`, username: `a_${randomUUID().slice(0, 8)}` },
     });
     const userB = await prisma.user.create({
-      data: { id: randomUUID(), email: `b-${randomUUID()}@example.com`, displayName: "B" },
+      data: { id: randomUUID(), email: `b-${randomUUID()}@example.com`, username: `b_${randomUUID().slice(0, 8)}` },
     });
     cleanup.userIds.push(userA.id, userB.id);
 

@@ -33,7 +33,7 @@ describe("trade proposed to a non-existent user", () => {
     cleanup.pinId = pin.id;
 
     const sender = await prisma.user.create({
-      data: { id: randomUUID(), email: `sender-${randomUUID()}@example.com`, displayName: "Sender" },
+      data: { id: randomUUID(), email: `sender-${randomUUID()}@example.com`, username: `sender_${randomUUID().slice(0, 8)}` },
     });
     cleanup.userIds.push(sender.id);
 
@@ -70,7 +70,7 @@ describe("trade proposed to a non-existent user", () => {
 
     // Time passes; the invitee signs up for real, getting a fresh auth id.
     const recipient = await prisma.user.create({
-      data: { id: randomUUID(), email: inviteEmail, displayName: "Late Signup" },
+      data: { id: randomUUID(), email: inviteEmail, username: `late_signup_${randomUUID().slice(0, 8)}` },
     });
     cleanup.userIds.push(recipient.id);
 

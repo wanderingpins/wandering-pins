@@ -17,7 +17,7 @@ describe("toPublicHolding", () => {
       lat: 28.5,
       lng: -81.4,
       releasedAt: null,
-      user: { displayName: "Tim", showNamePublicly: true },
+      user: { username: "tim", showNamePublicly: true },
       // Simulates a future query accidentally including private relations.
       title: { title: "My secret nickname for this pin" },
       note: { body: "Bought it with my daughter, she picked it out" },
@@ -31,7 +31,7 @@ describe("toPublicHolding", () => {
       acquiredAt: new Date("2024-03-01"),
       acquiredVia: "BOUGHT",
       placeLabel: "Orlando, FL",
-      holderDisplayName: "Tim",
+      holderDisplayName: "tim",
       lat: 28.5,
       lng: -81.4,
       isOpen: true,
@@ -52,7 +52,7 @@ describe("toPublicHolding", () => {
       lat: 39.7,
       lng: -105.0,
       releasedAt: new Date(),
-      user: { displayName: "Sarah", showNamePublicly: false },
+      user: { username: "sarah", showNamePublicly: false },
     };
     expect(toPublicHolding(holding).holderDisplayName).toBe("a collector");
   });
