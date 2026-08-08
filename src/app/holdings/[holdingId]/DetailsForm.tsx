@@ -7,10 +7,16 @@ export function DetailsForm({
   holdingId,
   initialTitle,
   initialNotes,
+  initialReleaseDate,
+  initialReleasePlaceLabel,
+  isReleased,
 }: {
   holdingId: string;
   initialTitle: string;
   initialNotes: string;
+  initialReleaseDate: string;
+  initialReleasePlaceLabel: string;
+  isReleased: boolean;
 }) {
   const action = updateHoldingDetails.bind(null, holdingId);
   const [state, formAction, pending] = useActionState<ActionState, FormData>(action, { status: "idle" });
@@ -35,6 +41,29 @@ export function DetailsForm({
           className="rounded-md border border-neutral-300 px-3 py-2"
         />
       </label>
+      {isReleased && (
+        <>
+          <label className="flex flex-col gap-1 text-sm">
+            When did you let it go? <span className="text-neutral-400">(optional)</span>
+            <input
+              type="date"
+              name="releaseDate"
+              defaultValue={initialReleaseDate}
+              className="rounded-md border border-neutral-300 px-3 py-2"
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-sm">
+            Where did you leave or trade it? <span className="text-neutral-400">(optional)</span>
+            <input
+              type="text"
+              name="releasePlaceLabel"
+              defaultValue={initialReleasePlaceLabel}
+              placeholder="e.g. Epcot pin board"
+              className="rounded-md border border-neutral-300 px-3 py-2"
+            />
+          </label>
+        </>
+      )}
       <button
         type="submit"
         disabled={pending}

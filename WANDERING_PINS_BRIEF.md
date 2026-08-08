@@ -216,9 +216,11 @@ section 7.
 | field | notes |
 |---|---|
 | `id`, `holding_id`, `body`, `updated_at` | |
+| `release_date`, `release_place_label` | optional — when/where the holder let this pin go with no specific recipient (section 6.4), reachable right after releasing |
 
 One private blurb per holding. Readable only by the user who owns that holding. This is where "I
-bought it at Disney with my daughter and she picked it out" lives.
+bought it at Disney with my daughter and she picked it out" lives — or, at the other end of a
+holding's life, "left it on the pin board by the Epcot entrance."
 
 Scoped to the holding rather than to the pin, so if someone acquires the same pin twice they get a
 separate note for each stint. That is more truthful to the journey and simpler to reason about.
@@ -243,31 +245,10 @@ public.
 
 What the holder calls this pin. Private, because it is free-typed. See section 7.
 
-### `trades`
-
-Two independent, one-sided actions, not one two-sided confirmation: the recipient can claim a
-traded pin with no permission from the sender, and the sender separately approves that it's left
-their hands, in either order, on their own timeline. This means a pin can legitimately be open in
-both accounts at once for a while — that overlap is accepted, not an error state.
-
-| field | notes |
-|---|---|
-| `id`, `pin_id`, `from_user_id` | |
-| `holding_id` | the sender's specific holding this trade will release — recorded at proposal time so approval can't later release the wrong holding if the sender re-acquires this pin |
-| `to_user_id` | nullable — may be an invite to a not-yet-registered email |
-| `to_email` | for invite-by-email |
-| `status` | `PENDING` \| `CONFIRMED` \| `DECLINED` |
-| `proposed_at`, `claimed_at`, `giver_released_at`, `resolved_at` | |
-| `place_label`, `lat`, `lng` | where the trade happened, coarse |
-
-On claim: open a new holding for the recipient with `acquired_via = TRADED` — the sender's holding
-is untouched. On the sender's approval: close their holding (`released_at`) — independent of
-whether the recipient has claimed yet. `status` becomes `CONFIRMED` (with `resolved_at`) only once
-both have happened; `DECLINED` is only reachable before the recipient claims.
-
-When a pin has more than one open holding, "current holder" for display (the public journey page,
-"My pins") is whichever open holding has the latest `acquired_at` — i.e. whoever claimed most
-recently wins the display, even if the previous holder hasn't approved release yet.
+There is no `trades` table. Releasing a pin has no recipient to record (section 6.4) — the current
+holder just closes their own holding, and whoever finds the pin later opens a fresh one for
+themselves the same way anyone claims a never-before-registered pin. There's nothing to address, so
+there's nothing to store beyond the holding itself.
 
 ---
 
@@ -311,22 +292,27 @@ email, magic-link sign-in is the recovery path — no separate "forgot password"
 
 ### 6.3 Register a pin
 
-Authenticated. Claim a `MINTED` slug, or claim a `REGISTERED` pin that has been traded to you.
+Authenticated. Claim a `MINTED` slug, or claim a `REGISTERED` pin that currently has no holder
+(section 6.4) — same form either way, since the only real precondition is "no open holding exists."
 
 Capture: how you got it (`acquired_via`), roughly when, and a coarse location. Optionally a private
 title, private notes, and private photos. Opens a holding.
 
 ### 6.4 Log a trade
 
-Authenticated. The current owner records that they traded the pin away, creating a `PENDING`
-trade. The recipient can claim it immediately — no permission needed from the sender — which opens
-their holding right away. The sender separately approves once it's physically left their hands,
-whenever that happens, closing their own holding. These two steps are independent and
-order-independent; a pin can be open in both accounts at once in between. The sender can cancel an
-unclaimed offer (to re-offer to someone else); there's no equivalent "undo" once claimed.
+Authenticated. The current holder releases the pin with **no recipient specified at all** — this is
+the whole point. One click closes their holding and moves it to "ever had" immediately; there is no
+pending state, no email or username to provide, and nothing to wait on. Think of a pin left on a
+pinboard for a stranger to find: the two people never interact, and the giver usually has no idea
+who ends up with it next.
 
-The recipient may not have an account. Handle invite-by-email so a trade can be initiated against
-someone who signs up later and claims then. This is how the product grows.
+Afterward, optionally and privately (only the person who released it ever sees this): when they let
+it go, where, and anything else about the trade ("gave it to a friend," "left it for someone to
+find"). This lives on the same holding — see `holding_notes` in section 5.
+
+Whoever finds the pin later scans its own sticker code and goes through 6.3 above, exactly as if it
+had never been registered. There's no invite, no addressing, nothing for the previous holder to do
+or be notified about.
 
 ### 6.5 My pins
 
@@ -410,12 +396,11 @@ items 2 and 3 exist.
   browser offers them. Snap to a city centroid before storing, not at render time.
 - **Strip EXIF on upload.** Phone photos embed GPS. Even though photos are private in v1, do not
   keep coordinates you have promised not to expose.
-- Show display names, never email addresses. Honour `show_name_publicly`, falling back to "a
+- Show usernames, never email addresses. Honour `show_name_publicly`, falling back to "a
   collector".
 - Rate-limit `/p/{slug}` by IP. With a ~1 billion keyspace, random guessing is otherwise a viable
   way to scrape the map. This is the compensating control for spending a character on the check
   digit rather than on entropy.
-- A trade invite goes to an email address. Do not leak whether that address already has an account.
 
 ---
 
@@ -500,7 +485,6 @@ v1 is finished when all of the following pass:
       test that walks the public page's rendered output.
 - [ ] A second user cannot read another user's notes, titles or photos, including by direct asset
       URL.
-- [ ] A trade proposed to a non-existent user survives that user signing up and claiming.
 - [ ] After trading a pin away, the original owner still sees it under "ever had", still sees their
       own notes and photos, and can see the journey continue.
 - [ ] No page anywhere renders precise coordinates or an email address.

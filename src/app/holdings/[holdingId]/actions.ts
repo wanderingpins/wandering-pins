@@ -26,6 +26,8 @@ export async function updateHoldingDetails(
 
   const title = (formData.get("title") as string | null)?.trim() ?? "";
   const notes = (formData.get("notes") as string | null)?.trim() ?? "";
+  const releaseDateRaw = (formData.get("releaseDate") as string | null)?.trim() ?? "";
+  const releasePlaceLabel = (formData.get("releasePlaceLabel") as string | null)?.trim() ?? "";
 
   if (title) {
     await prisma.pinTitle.upsert({ where: { holdingId }, update: { title }, create: { holdingId, title } });
@@ -33,8 +35,16 @@ export async function updateHoldingDetails(
     await prisma.pinTitle.deleteMany({ where: { holdingId } });
   }
 
-  if (notes) {
-    await prisma.holdingNote.upsert({ where: { holdingId }, update: { body: notes }, create: { holdingId, body: notes } });
+  // releaseDate/releasePlaceLabel are optional context for a pin released
+  // with no specific recipient (brief section 6.4) — folded into the same
+  // private note as the free-typed body, only ever visible to this holder.
+  if (notes || releaseDateRaw || releasePlaceLabel) {
+    const data = {
+      body: notes,
+      releaseDate: releaseDateRaw ? new Date(releaseDateRaw) : null,
+      releasePlaceLabel: releasePlaceLabel || null,
+    };
+    await prisma.holdingNote.upsert({ where: { holdingId }, update: data, create: { holdingId, ...data } });
   } else {
     await prisma.holdingNote.deleteMany({ where: { holdingId } });
   }

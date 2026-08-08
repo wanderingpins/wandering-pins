@@ -7,7 +7,6 @@ import { buildTimeline } from "@/lib/timeline";
 import { toPublicHolding } from "@/lib/public-pin";
 import { PinJourneyTimeline } from "@/components/PinJourneyTimeline";
 import { PinJourneyMap } from "@/components/PinJourneyMap";
-import { approveRelease } from "@/app/register/[slug]/actions";
 
 // Zod boundary for the raw route param — brief section 10 ("Zod at every
 // input boundary, including the slug parser"). This just guards the shape;
@@ -53,28 +52,12 @@ export default async function PinPage({ params }: Props) {
   const lines = buildTimeline(holdings);
   const points = holdings.map((h) => ({ lat: h.lat, lng: h.lng, label: h.placeLabel }));
 
-  // Claiming and releasing are independent (brief section 6.4) — a pin can
-  // have more than one open holding at once. "Current holder" for display
-  // is whichever open holding has the latest acquiredAt; pin.holdings is
-  // already ordered ascending, so that's just the last one — the same rule
-  // PinJourneyTimeline already uses to bold the last line.
-  const openHoldings = pin.holdings.filter((h) => h.releasedAt === null);
-  const displayedHolding = openHoldings[openHoldings.length - 1];
+  // At most one open holding per pin (restored partial unique index —
+  // release is atomic and one-sided, brief section 6.4, so there's never an
+  // overlap, only a gap between someone releasing and someone else claiming).
+  const openHolding = pin.holdings.find((h) => h.releasedAt === null);
   const claims = await getAuthClaims();
-  const myOpenHolding = claims ? openHoldings.find((h) => h.userId === claims.sub) : undefined;
-  const isDisplayedHolder = !!myOpenHolding && myOpenHolding.id === displayedHolding?.id;
-
-  // Only fetched when relevant: the viewer traded this pin away and the
-  // recipient already claimed it, but the viewer hasn't approved release
-  // yet — this is the trade that approveRelease needs.
-  const pendingOutgoingTrade =
-    myOpenHolding && !isDisplayedHolder
-      ? await prisma.trade.findFirst({
-          where: { pinId: pin.id, fromUserId: myOpenHolding.userId, status: "PENDING", giverReleasedAt: null },
-          orderBy: { proposedAt: "desc" },
-          include: { toUser: true },
-        })
-      : null;
+  const isCurrentHolder = !!claims && claims.sub === openHolding?.userId;
 
   return (
     <main className="mx-auto max-w-2xl px-4 py-10">
@@ -90,7 +73,7 @@ export default async function PinPage({ params }: Props) {
       </div>
 
       <div className="mt-10 rounded-lg border border-neutral-200 p-4">
-        {isDisplayedHolder ? (
+        {isCurrentHolder ? (
           <>
             <p className="text-sm text-neutral-700">This pin is currently in your hands.</p>
             <Link
@@ -99,25 +82,6 @@ export default async function PinPage({ params }: Props) {
             >
               Log a trade
             </Link>
-          </>
-        ) : myOpenHolding ? (
-          <>
-            <p className="text-sm text-neutral-700">
-              You traded this pin to{" "}
-              {pendingOutgoingTrade?.toUser?.username ?? pendingOutgoingTrade?.toEmail ?? "someone"} —
-              they&apos;ve already added it to their collection. Confirm below once it&apos;s physically
-              left your hands.
-            </p>
-            {pendingOutgoingTrade && (
-              <form action={approveRelease.bind(null, pendingOutgoingTrade.id)}>
-                <button
-                  type="submit"
-                  className="mt-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
-                >
-                  Confirm it&apos;s left your hands
-                </button>
-              </form>
-            )}
           </>
         ) : (
           <>

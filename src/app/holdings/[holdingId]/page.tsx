@@ -39,10 +39,23 @@ export default async function HoldingPage({ params }: Props) {
       </p>
       <h1 className="mt-1 text-xl font-semibold">Your notes on this pin</h1>
 
+      {holding.releasedAt && (
+        <p className="mt-2 text-sm text-neutral-600">
+          You let this pin go — add any details below, private and optional.
+        </p>
+      )}
+
       <PrivacyBanner />
 
       <section className="mt-6">
-        <DetailsForm holdingId={holdingId} initialTitle={title?.title ?? ""} initialNotes={note?.body ?? ""} />
+        <DetailsForm
+          holdingId={holdingId}
+          initialTitle={title?.title ?? ""}
+          initialNotes={note?.body ?? ""}
+          initialReleaseDate={note?.releaseDate ? note.releaseDate.toISOString().slice(0, 10) : ""}
+          initialReleasePlaceLabel={note?.releasePlaceLabel ?? ""}
+          isReleased={holding.releasedAt !== null}
+        />
       </section>
 
       <section className="mt-10">

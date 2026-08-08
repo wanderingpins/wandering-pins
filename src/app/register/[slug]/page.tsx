@@ -3,7 +3,6 @@ import { prisma } from "@/lib/prisma";
 import { parseSlug } from "@/lib/slug";
 import { requireAppUser } from "@/lib/auth";
 import { RegisterForm } from "./RegisterForm";
-import { claimTrade, declineTrade } from "./actions";
 
 const rawSlugSchema = z.string().min(1).max(64);
 
@@ -11,7 +10,7 @@ type Props = { params: Promise<{ slug: string }> };
 
 export default async function RegisterPage({ params }: Props) {
   const { slug: rawParam } = await params;
-  const user = await requireAppUser(`/register/${rawParam}`);
+  await requireAppUser(`/register/${rawParam}`);
 
   const rawSlugResult = rawSlugSchema.safeParse(rawParam);
   const parsed = rawSlugResult.success ? parseSlug(rawSlugResult.data) : { valid: false as const };
@@ -23,7 +22,10 @@ export default async function RegisterPage({ params }: Props) {
     );
   }
 
-  const pin = await prisma.pin.findUnique({ where: { slug: parsed.slug } });
+  const pin = await prisma.pin.findUnique({
+    where: { slug: parsed.slug },
+    include: { holdings: { where: { releasedAt: null } } },
+  });
   if (!pin) {
     return (
       <main className="mx-auto max-w-md px-4 py-16">
@@ -36,7 +38,10 @@ export default async function RegisterPage({ params }: Props) {
     );
   }
 
-  if (pin.status === "MINTED") {
+  // Covers both a never-before-claimed pin and one someone released with no
+  // specific recipient (brief section 6.4) — either way, no open holding
+  // means it's up for grabs, and the same form captures how/when/where.
+  if (pin.holdings.length === 0) {
     return (
       <main className="mx-auto max-w-md px-4 py-16">
         <p className="text-sm text-neutral-500">Pin {pin.slug}</p>
@@ -48,53 +53,11 @@ export default async function RegisterPage({ params }: Props) {
     );
   }
 
-  const pendingTrade = await prisma.trade.findFirst({
-    where: {
-      pinId: pin.id,
-      status: "PENDING",
-      claimedAt: null,
-      OR: [{ toUserId: user.id }, { toEmail: user.email }],
-    },
-  });
-
-  if (pendingTrade) {
-    return (
-      <main className="mx-auto max-w-md px-4 py-16">
-        <p className="text-sm text-neutral-500">Pin {pin.slug}</p>
-        <h1 className="mt-1 text-xl font-semibold">Someone traded you this pin</h1>
-        <p className="mt-2 text-neutral-700">
-          Claiming adds it to your collection right away — it&apos;s on them to confirm separately once
-          it&apos;s left their hands.
-        </p>
-        <div className="mt-6 flex gap-3">
-          <form action={claimTrade.bind(null, pendingTrade.id)}>
-            <button
-              type="submit"
-              className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
-            >
-              Claim it
-            </button>
-          </form>
-          <form action={declineTrade.bind(null, pendingTrade.id)}>
-            <button
-              type="submit"
-              className="rounded-md border border-neutral-300 px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
-            >
-              Decline
-            </button>
-          </form>
-        </div>
-      </main>
-    );
-  }
-
   return (
     <main className="mx-auto max-w-md px-4 py-16">
       <p className="text-sm text-neutral-500">Pin {pin.slug}</p>
       <h1 className="mt-1 text-xl font-semibold">This pin is already claimed</h1>
-      <p className="mt-2 text-neutral-700">
-        If it was traded to you, ask the sender to log the trade to your account.
-      </p>
+      <p className="mt-2 text-neutral-700">Someone else currently has this pin.</p>
     </main>
   );
 }

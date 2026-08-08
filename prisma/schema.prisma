@@ -27,12 +27,6 @@ enum AcquiredVia {
   OTHER
 }
 
-enum TradeStatus {
-  PENDING
-  CONFIRMED
-  DECLINED
-}
-
 enum PhotoKind {
   FRONT
   BACK
@@ -60,7 +54,6 @@ model Pin {
 
   batch    StickerBatch @relation(fields: [batchId], references: [id])
   holdings PinHolding[]
-  trades   Trade[]
 
   @@map("pins")
 }
@@ -86,9 +79,7 @@ model User {
   createdAt        DateTime @default(now()) @map("created_at")
   showNamePublicly Boolean  @default(true) @map("show_name_publicly")
 
-  holdings        PinHolding[]
-  tradesInitiated Trade[]      @relation("TradeFromUser")
-  tradesReceived  Trade[]      @relation("TradeToUser")
+  holdings PinHolding[]
 
   @@map("users")
 }
@@ -97,11 +88,12 @@ model User {
 // Every field on this model is PUBLIC. See brief section 7 — do not add
 // free-typed or user-uploaded fields here.
 //
-// A pin can have more than one open (released_at IS NULL) holding at once —
-// claiming a trade and releasing it are independent, one-sided actions (brief
-// section 6.4), so there's a window where both the giver's and receiver's
-// holdings are open. "Current holder" for display is whichever open holding
-// has the latest acquired_at — see /p/[slug]/page.tsx.
+// "At most one open holding per pin" (released_at IS NULL) is enforced by a
+// partial unique index added in migration SQL — Prisma's schema DSL has no
+// WHERE clause for @@unique. See prisma/migrations/*_pin_holdings_partial_unique_open
+// and *_release_without_recipient (this constraint was briefly dropped to
+// support two-sided addressed trades, then restored once those were retired
+// in favor of one-sided, unaddressed release — brief section 6.4).
 model PinHolding {
   id          String      @id @default(cuid())
   pinId       String      @map("pin_id")
@@ -119,7 +111,6 @@ model PinHolding {
   note   HoldingNote?
   photos HoldingPhoto[]
   title  PinTitle?
-  trades Trade[]
 
   @@index([pinId])
   @@index([userId])
@@ -127,11 +118,17 @@ model PinHolding {
 }
 
 // Private: readable only by the user who owns the parent holding.
+// releaseDate/releasePlaceLabel are optional context the giver can add after
+// releasing a pin with no specific recipient (brief section 6.4) — when they
+// let it go and where, alongside the existing free-typed body for anything
+// else. Never shown publicly, same as body.
 model HoldingNote {
-  id        String   @id @default(cuid())
-  holdingId String   @unique @map("holding_id")
-  body      String
-  updatedAt DateTime @updatedAt @map("updated_at")
+  id                String    @id @default(cuid())
+  holdingId         String    @unique @map("holding_id")
+  body              String
+  releaseDate       DateTime? @map("release_date")
+  releasePlaceLabel String?   @map("release_place_label")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
 
   holding PinHolding @relation(fields: [holdingId], references: [id])
 
@@ -179,38 +176,3 @@ model RateLimitHit {
   @@map("rate_limit_hits")
 }
 
-// Claiming (receiver) and releasing (giver) are independent one-sided
-// actions, not a single two-sided confirmation (brief section 6.4) —
-// claimedAt and giverReleasedAt are set by separate actions, in either
-// order. status becomes CONFIRMED (with resolvedAt) only once both are set;
-// DECLINED is only reachable before claimedAt is set (see cancelTrade /
-// declineTrade). holdingId pins this trade to the giver's specific holding
-// at proposal time, so approveRelease can't accidentally release a
-// different, later holding of the same pin — nullable only because it's an
-// additive migration onto rows that predate the column.
-model Trade {
-  id              String      @id @default(cuid())
-  pinId           String      @map("pin_id")
-  holdingId       String?     @map("holding_id")
-  fromUserId      String      @map("from_user_id")
-  toUserId        String?     @map("to_user_id")
-  toEmail         String?     @map("to_email")
-  status          TradeStatus @default(PENDING)
-  proposedAt      DateTime    @default(now()) @map("proposed_at")
-  claimedAt       DateTime?   @map("claimed_at")
-  giverReleasedAt DateTime?   @map("giver_released_at")
-  resolvedAt      DateTime?   @map("resolved_at")
-  placeLabel      String?     @map("place_label")
-  lat             Float?
-  lng             Float?
-
-  pin      Pin         @relation(fields: [pinId], references: [id])
-  holding  PinHolding? @relation(fields: [holdingId], references: [id])
-  fromUser User        @relation("TradeFromUser", fields: [fromUserId], references: [id])
-  toUser   User?       @relation("TradeToUser", fields: [toUserId], references: [id])
-
-  @@index([pinId])
-  @@index([toEmail])
-  @@index([holdingId])
-  @@map("trades")
-}

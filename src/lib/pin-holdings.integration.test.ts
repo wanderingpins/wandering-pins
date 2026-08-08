@@ -3,11 +3,15 @@ import { afterEach, describe, expect, it } from "vitest";
 import { prisma } from "./prisma";
 import { generateSlug } from "./slug";
 
-// The partial unique index that used to enforce "at most one open holding
-// per pin" was dropped (brief section 6.4): claiming a trade (claimTrade)
-// and releasing it (approveRelease) are independent, one-sided actions, so
-// a pin can legitimately be open in two accounts at once while one side
-// hasn't acted yet.
+// Confirms the hand-written partial unique index holds: a pin can never
+// have two open (released_at IS NULL) holdings at once. This was briefly
+// dropped to support two-sided addressed trades (a giver's and receiver's
+// holdings both open while one side hadn't acted yet), then restored once
+// that model was retired in favor of one-sided, unaddressed release (brief
+// section 6.4) — release is atomic and instant, so there's a gap between
+// someone releasing and someone else claiming, never an overlap. This is
+// exactly the invariant registerPin relies on to reject a race where two
+// people try to claim the same released pin at once.
 describe("pin_holdings open-holding constraint", () => {
   const cleanup: { pinId?: string; batchId?: string; userIds: string[] } = { userIds: [] };
 
@@ -21,7 +25,7 @@ describe("pin_holdings open-holding constraint", () => {
     cleanup.userIds = [];
   });
 
-  it("allows a second open holding on the same pin", async () => {
+  it("rejects a second open holding on the same pin", async () => {
     const batch = await prisma.stickerBatch.create({ data: { label: "test", quantity: 1 } });
     cleanup.batchId = batch.id;
     const pin = await prisma.pin.create({
@@ -49,7 +53,6 @@ describe("pin_holdings open-holding constraint", () => {
       },
     });
 
-    // userB claiming before userA has approved release — both stay open.
     await expect(
       prisma.pinHolding.create({
         data: {
@@ -62,10 +65,7 @@ describe("pin_holdings open-holding constraint", () => {
           lng: -105.0,
         },
       })
-    ).resolves.toMatchObject({ userId: userB.id });
-
-    const openHoldings = await prisma.pinHolding.findMany({ where: { pinId: pin.id, releasedAt: null } });
-    expect(openHoldings).toHaveLength(2);
+    ).rejects.toThrow();
   });
 
   it("allows a new open holding once the previous one is released", async () => {
