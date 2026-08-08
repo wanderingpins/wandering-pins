@@ -9,7 +9,7 @@ export default async function MyPinsPage() {
 
   const holdings = await prisma.pinHolding.findMany({
     where: { userId: user.id },
-    include: { pin: true, title: true },
+    include: { pin: true, title: true, photos: { orderBy: { createdAt: "asc" }, take: 1 } },
     orderBy: { acquiredAt: "desc" },
   });
 
@@ -46,6 +46,7 @@ export default async function MyPinsPage() {
                 placeLabel={h.placeLabel}
                 title={h.title?.title}
                 acquiredAt={h.acquiredAt}
+                photoId={h.photos[0]?.id}
               />
             ))}
           </ul>
@@ -85,6 +86,7 @@ function HoldingRow({
   title,
   acquiredAt,
   released,
+  photoId,
 }: {
   id: string;
   slug: string;
@@ -92,22 +94,33 @@ function HoldingRow({
   title?: string;
   acquiredAt: Date;
   released?: boolean;
+  photoId?: string;
 }) {
   return (
-    <li className="flex items-center justify-between py-3">
-      <Link href={`/p/${slug}`} className="hover:underline">
-        {title ? title : placeLabel} · {formatMonthYear(acquiredAt)}
-      </Link>
-      <span className="flex items-center gap-3 text-sm">
-        <Link href={`/holdings/${id}`} className="text-neutral-500 hover:text-black">
-          notes &amp; photos
+    <li className="flex items-center gap-3 py-3">
+      {photoId && (
+        // eslint-disable-next-line @next/next/no-img-element -- private, per-user image behind an auth-gated route, same as the holding detail page
+        <img
+          src={`/api/holdings/${id}/photos/${photoId}`}
+          alt=""
+          className="h-12 w-12 flex-shrink-0 rounded-md object-cover"
+        />
+      )}
+      <div className="flex flex-1 items-center justify-between">
+        <Link href={`/p/${slug}`} className="hover:underline">
+          {title ? title : placeLabel} · {formatMonthYear(acquiredAt)}
         </Link>
-        {released && (
-          <Link href={`/p/${slug}`} className="text-neutral-500 hover:text-black">
-            see where it went &rarr;
+        <span className="flex items-center gap-3 text-sm">
+          <Link href={`/holdings/${id}`} className="text-neutral-500 hover:text-black">
+            notes &amp; photos
           </Link>
-        )}
-      </span>
+          {released && (
+            <Link href={`/p/${slug}`} className="text-neutral-500 hover:text-black">
+              see where it went &rarr;
+            </Link>
+          )}
+        </span>
+      </div>
     </li>
   );
 }

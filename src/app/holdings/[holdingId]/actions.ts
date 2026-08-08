@@ -68,7 +68,12 @@ export async function uploadPhoto(holdingId: string, _prevState: ActionState, fo
   }
 
   const rawBuffer = Buffer.from(await file.arrayBuffer());
-  const processed = await processHoldingPhoto(rawBuffer);
+  let processed: Buffer;
+  try {
+    processed = await processHoldingPhoto(rawBuffer);
+  } catch {
+    return { status: "error", message: "That file doesn't look like a valid image. Please try a different photo." };
+  }
   const path = await uploadHoldingPhoto(holdingId, processed, "image/jpeg");
 
   await prisma.holdingPhoto.create({ data: { holdingId, url: path, kind: kindParsed.data } });
