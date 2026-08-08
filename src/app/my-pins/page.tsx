@@ -9,7 +9,7 @@ export default async function MyPinsPage() {
 
   const holdings = await prisma.pinHolding.findMany({
     where: { userId: user.id },
-    include: { pin: true },
+    include: { pin: true, title: true },
     orderBy: { acquiredAt: "desc" },
   });
 
@@ -39,7 +39,14 @@ export default async function MyPinsPage() {
         ) : (
           <ul className="mt-3 divide-y divide-neutral-200">
             {currentlyHave.map((h) => (
-              <HoldingRow key={h.id} id={h.id} slug={h.pin.slug} placeLabel={h.placeLabel} acquiredAt={h.acquiredAt} />
+              <HoldingRow
+                key={h.id}
+                id={h.id}
+                slug={h.pin.slug}
+                placeLabel={h.placeLabel}
+                title={h.title?.title}
+                acquiredAt={h.acquiredAt}
+              />
             ))}
           </ul>
         )}
@@ -59,6 +66,7 @@ export default async function MyPinsPage() {
                 id={h.id}
                 slug={h.pin.slug}
                 placeLabel={h.placeLabel}
+                title={h.title?.title}
                 acquiredAt={h.acquiredAt}
                 released={h.releasedAt !== null}
               />
@@ -74,19 +82,21 @@ function HoldingRow({
   id,
   slug,
   placeLabel,
+  title,
   acquiredAt,
   released,
 }: {
   id: string;
   slug: string;
   placeLabel: string;
+  title?: string;
   acquiredAt: Date;
   released?: boolean;
 }) {
   return (
     <li className="flex items-center justify-between py-3">
       <Link href={`/p/${slug}`} className="hover:underline">
-        {placeLabel} · {formatMonthYear(acquiredAt)}
+        {title ? title : placeLabel} · {formatMonthYear(acquiredAt)}
       </Link>
       <span className="flex items-center gap-3 text-sm">
         <Link href={`/holdings/${id}`} className="text-neutral-500 hover:text-black">
