@@ -242,22 +242,29 @@ What the holder calls this pin. Private, because it is free-typed. See section 7
 
 ### `trades`
 
-Two-sided confirmation of a handoff.
+Two independent, one-sided actions, not one two-sided confirmation: the recipient can claim a
+traded pin with no permission from the sender, and the sender separately approves that it's left
+their hands, in either order, on their own timeline. This means a pin can legitimately be open in
+both accounts at once for a while — that overlap is accepted, not an error state.
 
 | field | notes |
 |---|---|
 | `id`, `pin_id`, `from_user_id` | |
+| `holding_id` | the sender's specific holding this trade will release — recorded at proposal time so approval can't later release the wrong holding if the sender re-acquires this pin |
 | `to_user_id` | nullable — may be an invite to a not-yet-registered email |
 | `to_email` | for invite-by-email |
 | `status` | `PENDING` \| `CONFIRMED` \| `DECLINED` |
-| `proposed_at`, `resolved_at` | |
+| `proposed_at`, `claimed_at`, `giver_released_at`, `resolved_at` | |
 | `place_label`, `lat`, `lng` | where the trade happened, coarse |
 
-On confirmation: close the sender's holding (`released_at`), open a new holding for the recipient
-with `acquired_via = TRADED`, and the journey grows by one leg.
+On claim: open a new holding for the recipient with `acquired_via = TRADED` — the sender's holding
+is untouched. On the sender's approval: close their holding (`released_at`) — independent of
+whether the recipient has claimed yet. `status` becomes `CONFIRMED` (with `resolved_at`) only once
+both have happened; `DECLINED` is only reachable before the recipient claims.
 
-Two-sided confirmation is what makes the chain trustworthy enough to be fun, without pretending to
-be proof.
+When a pin has more than one open holding, "current holder" for display (the public journey page,
+"My pins") is whichever open holding has the latest `acquired_at` — i.e. whoever claimed most
+recently wins the display, even if the previous holder hasn't approved release yet.
 
 ---
 
@@ -298,11 +305,15 @@ title, private notes, and private photos. Opens a holding.
 
 ### 6.4 Log a trade
 
-Authenticated. The current owner records that they traded the pin away. Creates a `PENDING` trade;
-the recipient confirms or declines. On confirmation the holding closes and the recipient's opens.
+Authenticated. The current owner records that they traded the pin away, creating a `PENDING`
+trade. The recipient can claim it immediately — no permission needed from the sender — which opens
+their holding right away. The sender separately approves once it's physically left their hands,
+whenever that happens, closing their own holding. These two steps are independent and
+order-independent; a pin can be open in both accounts at once in between. The sender can cancel an
+unclaimed offer (to re-offer to someone else); there's no equivalent "undo" once claimed.
 
 The recipient may not have an account. Handle invite-by-email so a trade can be initiated against
-someone who signs up later and confirms then. This is how the product grows.
+someone who signs up later and claims then. This is how the product grows.
 
 ### 6.5 My pins
 
@@ -463,7 +474,7 @@ v1 is finished when all of the following pass:
       test that walks the public page's rendered output.
 - [ ] A second user cannot read another user's notes, titles or photos, including by direct asset
       URL.
-- [ ] A trade proposed to a non-existent user survives that user signing up and confirming.
+- [ ] A trade proposed to a non-existent user survives that user signing up and claiming.
 - [ ] After trading a pin away, the original owner still sees it under "ever had", still sees their
       own notes and photos, and can see the journey continue.
 - [ ] No page anywhere renders precise coordinates or an email address.

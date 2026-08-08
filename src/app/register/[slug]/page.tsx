@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { parseSlug } from "@/lib/slug";
 import { requireAppUser } from "@/lib/auth";
 import { RegisterForm } from "./RegisterForm";
-import { confirmTrade, declineTrade } from "./actions";
+import { claimTrade, declineTrade } from "./actions";
 
 const rawSlugSchema = z.string().min(1).max(64);
 
@@ -52,6 +52,7 @@ export default async function RegisterPage({ params }: Props) {
     where: {
       pinId: pin.id,
       status: "PENDING",
+      claimedAt: null,
       OR: [{ toUserId: user.id }, { toEmail: user.email }],
     },
   });
@@ -62,15 +63,16 @@ export default async function RegisterPage({ params }: Props) {
         <p className="text-sm text-neutral-500">Pin {pin.slug}</p>
         <h1 className="mt-1 text-xl font-semibold">Someone traded you this pin</h1>
         <p className="mt-2 text-neutral-700">
-          Confirming adds it to your collection and closes their turn with it.
+          Claiming adds it to your collection right away — it&apos;s on them to confirm separately once
+          it&apos;s left their hands.
         </p>
         <div className="mt-6 flex gap-3">
-          <form action={confirmTrade.bind(null, pendingTrade.id)}>
+          <form action={claimTrade.bind(null, pendingTrade.id)}>
             <button
               type="submit"
               className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
             >
-              Confirm
+              Claim it
             </button>
           </form>
           <form action={declineTrade.bind(null, pendingTrade.id)}>

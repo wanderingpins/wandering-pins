@@ -12,7 +12,7 @@ export function TradeForm({ slug }: { slug: string }) {
   if (state.status === "sent") {
     return (
       <p className="text-neutral-700">
-        Trade logged. They&apos;ll see it waiting for them once they sign in.
+        Trade logged. They can claim it as soon as they sign in — no need to wait on them.
       </p>
     );
   }

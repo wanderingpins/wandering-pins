@@ -3,11 +3,11 @@ import { afterEach, describe, expect, it } from "vitest";
 import { prisma } from "./prisma";
 import { generateSlug } from "./slug";
 
-// Confirms the hand-written partial unique index from
-// prisma/migrations/*_pin_holdings_partial_unique_open actually holds: a
-// pin can never have two open (released_at IS NULL) holdings at once. This
-// is exactly the invariant registerPin/confirmTrade rely on when closing
-// the previous holding before opening the next.
+// The partial unique index that used to enforce "at most one open holding
+// per pin" was dropped (brief section 6.4): claiming a trade (claimTrade)
+// and releasing it (approveRelease) are independent, one-sided actions, so
+// a pin can legitimately be open in two accounts at once while one side
+// hasn't acted yet.
 describe("pin_holdings open-holding constraint", () => {
   const cleanup: { pinId?: string; batchId?: string; userIds: string[] } = { userIds: [] };
 
@@ -21,7 +21,7 @@ describe("pin_holdings open-holding constraint", () => {
     cleanup.userIds = [];
   });
 
-  it("rejects a second open holding on the same pin", async () => {
+  it("allows a second open holding on the same pin", async () => {
     const batch = await prisma.stickerBatch.create({ data: { label: "test", quantity: 1 } });
     cleanup.batchId = batch.id;
     const pin = await prisma.pin.create({
@@ -49,6 +49,7 @@ describe("pin_holdings open-holding constraint", () => {
       },
     });
 
+    // userB claiming before userA has approved release — both stay open.
     await expect(
       prisma.pinHolding.create({
         data: {
@@ -61,7 +62,10 @@ describe("pin_holdings open-holding constraint", () => {
           lng: -105.0,
         },
       })
-    ).rejects.toThrow();
+    ).resolves.toMatchObject({ userId: userB.id });
+
+    const openHoldings = await prisma.pinHolding.findMany({ where: { pinId: pin.id, releasedAt: null } });
+    expect(openHoldings).toHaveLength(2);
   });
 
   it("allows a new open holding once the previous one is released", async () => {

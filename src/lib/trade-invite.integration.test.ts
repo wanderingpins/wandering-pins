@@ -4,9 +4,12 @@ import { prisma } from "./prisma";
 import { generateSlug } from "./slug";
 
 // DoD (brief section 12): "A trade proposed to a non-existent user survives
-// that user signing up and confirming." — toUserId starts null (email-only
-// invite); confirmTrade matches on toEmail and backfills toUserId once the
-// invitee has an account, exactly as it would after they sign up for real.
+// that user signing up and confirming [claiming]." — toUserId starts null
+// (email-only invite); claimTrade matches on toEmail and backfills toUserId
+// once the invitee has an account, exactly as it would after they sign up
+// for real. Claiming is independent of the sender's release (brief section
+// 6.4), so status stays PENDING until the sender separately approves —
+// backfill and holding-creation don't wait on that.
 describe("trade proposed to a non-existent user", () => {
   const cleanup: { pinId?: string; batchId?: string; userIds: string[] } = { userIds: [] };
 
@@ -47,12 +50,14 @@ describe("trade proposed to a non-existent user", () => {
     });
 
     const inviteEmail = `not-yet-signed-up-${randomUUID()}@example.com`;
+    const senderHolding = await prisma.pinHolding.findFirstOrThrow({ where: { pinId: pin.id } });
 
     // initiateTrade's actual behavior when the recipient has no account yet:
     // toUserId is left unset, only toEmail is recorded.
     const trade = await prisma.trade.create({
       data: {
         pinId: pin.id,
+        holdingId: senderHolding.id,
         fromUserId: sender.id,
         toEmail: inviteEmail,
         placeLabel: "Denver, CO",
@@ -69,14 +74,15 @@ describe("trade proposed to a non-existent user", () => {
     });
     cleanup.userIds.push(recipient.id);
 
-    // findConfirmableTrade's matching logic (actions.ts): toUserId OR toEmail.
+    // findClaimableTrade's matching logic (actions.ts): toUserId OR toEmail.
     const matched = await prisma.trade.findUnique({ where: { id: trade.id } });
     const isRecipient = matched!.toUserId === recipient.id || matched!.toEmail === recipient.email;
     expect(isRecipient).toBe(true);
 
-    // confirmTrade's transaction, replicated:
+    // claimTrade's transaction, replicated — the sender hasn't approved
+    // release, so this only opens the recipient's holding and backfills
+    // toUserId; it does not touch the sender's holding or resolve the trade.
     await prisma.$transaction(async (tx) => {
-      await tx.pinHolding.updateMany({ where: { pinId: pin.id, releasedAt: null }, data: { releasedAt: new Date() } });
       await tx.pinHolding.create({
         data: {
           pinId: pin.id,
@@ -88,17 +94,22 @@ describe("trade proposed to a non-existent user", () => {
           lng: matched!.lng!,
         },
       });
-      await tx.trade.update({
-        where: { id: trade.id },
-        data: { status: "CONFIRMED", resolvedAt: new Date(), toUserId: recipient.id },
-      });
+      await tx.$executeRaw`
+        UPDATE trades
+        SET claimed_at = now(),
+            to_user_id = ${recipient.id},
+            status = CASE WHEN giver_released_at IS NOT NULL THEN 'CONFIRMED'::"TradeStatus" ELSE status END,
+            resolved_at = CASE WHEN giver_released_at IS NOT NULL THEN now() ELSE resolved_at END
+        WHERE id = ${trade.id}
+      `;
     });
 
-    const resolvedTrade = await prisma.trade.findUniqueOrThrow({ where: { id: trade.id } });
-    expect(resolvedTrade.status).toBe("CONFIRMED");
-    expect(resolvedTrade.toUserId).toBe(recipient.id); // backfilled
+    const claimedTrade = await prisma.trade.findUniqueOrThrow({ where: { id: trade.id } });
+    expect(claimedTrade.status).toBe("PENDING"); // sender hasn't approved release yet
+    expect(claimedTrade.toUserId).toBe(recipient.id); // backfilled
 
-    const openHolding = await prisma.pinHolding.findFirstOrThrow({ where: { pinId: pin.id, releasedAt: null } });
-    expect(openHolding.userId).toBe(recipient.id);
+    const openHoldings = await prisma.pinHolding.findMany({ where: { pinId: pin.id, releasedAt: null } });
+    expect(openHoldings.map((h) => h.userId)).toContain(recipient.id);
+    expect(openHoldings.map((h) => h.userId)).toContain(sender.id); // sender's stays open until they approve
   });
 });
