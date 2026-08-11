@@ -7,11 +7,11 @@ import { requireAppUser } from "@/lib/auth";
 import { getOwnedHolding } from "@/lib/holdings";
 import { processHoldingPhoto } from "@/lib/image";
 import { uploadHoldingPhoto, deleteHoldingPhoto } from "@/lib/storage";
+import { MAX_RAW_UPLOAD_BYTES } from "@/lib/photo-limits";
 
 export type ActionState = { status: "idle" | "ok" | "error"; message?: string };
 
 const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp"];
-const MAX_BYTES = 10 * 1024 * 1024;
 
 export async function updateHoldingDetails(
   holdingId: string,
@@ -73,7 +73,7 @@ export async function uploadPhoto(holdingId: string, _prevState: ActionState, fo
   if (!ALLOWED_TYPES.includes(file.type)) {
     return { status: "error", message: "Please upload a JPEG, PNG, or WebP image." };
   }
-  if (file.size > MAX_BYTES) {
+  if (file.size > MAX_RAW_UPLOAD_BYTES) {
     return { status: "error", message: "That image is too large (max 10MB)." };
   }
 
