@@ -31,7 +31,14 @@ export function DetailsForm({
           defaultValue={initialTitle}
           className="rounded-md border border-neutral-300 px-3 py-2"
         />
+        <span className="text-xs text-neutral-500">
+          🌐 Shown publicly on this pin&apos;s page while it&apos;s your current holding.
+        </span>
       </label>
+
+      <p className="inline-flex items-center gap-1.5 self-start rounded-full bg-neutral-100 px-3 py-1 text-xs font-medium text-neutral-600">
+        🔒 Only you can see this
+      </p>
       <label className="flex flex-col gap-1 text-sm">
         Notes
         <textarea

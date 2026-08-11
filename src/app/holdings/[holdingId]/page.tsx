@@ -45,8 +45,6 @@ export default async function HoldingPage({ params }: Props) {
         </p>
       )}
 
-      <PrivacyBanner />
-
       <section className="mt-6">
         <DetailsForm
           holdingId={holdingId}
@@ -60,27 +58,36 @@ export default async function HoldingPage({ params }: Props) {
 
       <section className="mt-10">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-500">Photos</h2>
-        <PrivacyBanner />
+        <p className="mt-2 text-xs text-neutral-500">
+          The front photo is shown publicly on this pin&apos;s page while this is your current holding. Back and
+          other photos always stay private.
+        </p>
         {photos.length > 0 && (
           <ul className="mt-3 grid grid-cols-3 gap-3">
-            {photos.map((photo) => (
-              <li key={photo.id} className="relative">
-                {/* eslint-disable-next-line @next/next/no-img-element -- private, per-user image behind an auth-gated route; next/image's optimizer would need its own auth pass-through */}
-                <img
-                  src={`/api/holdings/${holdingId}/photos/${photo.id}`}
-                  alt={photo.kind.toLowerCase()}
-                  className="aspect-square w-full rounded-md object-cover"
-                />
-                <form action={deletePhoto.bind(null, holdingId, photo.id)} className="absolute right-1 top-1">
-                  <button
-                    type="submit"
-                    className="rounded-full bg-black/60 px-2 py-0.5 text-xs text-white hover:bg-black/80"
-                  >
-                    &times;
-                  </button>
-                </form>
-              </li>
-            ))}
+            {photos.map((photo) => {
+              const isPublic = photo.kind === "FRONT" && holding.releasedAt === null;
+              return (
+                <li key={photo.id} className="relative">
+                  {/* eslint-disable-next-line @next/next/no-img-element -- private, per-user image behind an auth-gated route; next/image's optimizer would need its own auth pass-through */}
+                  <img
+                    src={`/api/holdings/${holdingId}/photos/${photo.id}`}
+                    alt={photo.kind.toLowerCase()}
+                    className="aspect-square w-full rounded-md object-cover"
+                  />
+                  <span className="absolute left-1 top-1 rounded-full bg-black/60 px-1.5 py-0.5 text-[10px] text-white">
+                    {isPublic ? "🌐 Public" : "🔒 Private"}
+                  </span>
+                  <form action={deletePhoto.bind(null, holdingId, photo.id)} className="absolute right-1 top-1">
+                    <button
+                      type="submit"
+                      className="rounded-full bg-black/60 px-2 py-0.5 text-xs text-white hover:bg-black/80"
+                    >
+                      &times;
+                    </button>
+                  </form>
+                </li>
+              );
+            })}
           </ul>
         )}
         <div className="mt-4">
@@ -88,13 +95,5 @@ export default async function HoldingPage({ params }: Props) {
         </div>
       </section>
     </main>
-  );
-}
-
-function PrivacyBanner() {
-  return (
-    <p className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-neutral-100 px-3 py-1 text-xs font-medium text-neutral-600">
-      🔒 Only you can see this
-    </p>
   );
 }
