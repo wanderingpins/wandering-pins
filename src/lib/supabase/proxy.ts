@@ -1,6 +1,22 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
+// getClaims() only makes a network call when the token needs refreshing
+// (expired access token, or a cold instance with no cached JWKS yet) — but
+// when Supabase's own Auth/API Gateway is degraded, that call can hang far
+// longer than a normal page load should ever take, and this middleware runs
+// on every request site-wide, not just signed-in ones. Capping it means a
+// slow Auth provider costs one skipped session refresh instead of stalling
+// every visitor's every click.
+const GET_CLAIMS_TIMEOUT_MS = 3000;
+
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T | "timeout"> {
+  return Promise.race([
+    promise,
+    new Promise<"timeout">((resolve) => setTimeout(() => resolve("timeout"), ms)),
+  ]);
+}
+
 // Refreshes the Supabase Auth session on every request and keeps the
 // refreshed cookies in sync between the incoming request (so Server
 // Components don't redundantly refresh) and the outgoing response (so the
@@ -29,8 +45,15 @@ export async function updateSession(request: NextRequest) {
 
   // getClaims() validates the JWT locally against the project's published
   // keys and refreshes it if expired — never use getSession() here, it
-  // isn't guaranteed to revalidate the token.
-  await supabase.auth.getClaims();
+  // isn't guaranteed to revalidate the token. If it times out, this request
+  // just skips the refresh (fail closed — no cookies get touched here, and
+  // the real session cookie is untouched, so the next request tries again
+  // normally); it does NOT log anyone out, it only means this one request
+  // didn't proactively renew the token.
+  const result = await withTimeout(supabase.auth.getClaims(), GET_CLAIMS_TIMEOUT_MS);
+  if (result === "timeout") {
+    console.error(`getClaims timed out after ${GET_CLAIMS_TIMEOUT_MS}ms — skipping session refresh for this request`);
+  }
 
   return supabaseResponse;
 }
