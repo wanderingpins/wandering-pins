@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { toPublicHolding } from "./public-pin";
+import { toPublicHolding, toPublicCheckIn } from "./public-pin";
 
 describe("toPublicHolding", () => {
   // The DoD in brief section 12 requires a test asserting no user-typed
@@ -55,5 +55,46 @@ describe("toPublicHolding", () => {
       user: { username: "sarah", showNamePublicly: false },
     };
     expect(toPublicHolding(holding).holderDisplayName).toBe("a collector");
+  });
+});
+
+describe("toPublicCheckIn", () => {
+  it("only carries structured, public fields through — extra properties can't leak", () => {
+    const checkInWithPrivateDataAttached = {
+      loggedAt: new Date("2024-04-10"),
+      placeLabel: "Denver, CO",
+      lat: 39.7,
+      lng: -105.0,
+      holder: { username: "tim", showNamePublicly: true },
+      // Simulates a future query accidentally including private relations.
+      note: { body: "Left it on a friend's desk for a week" },
+      photos: [{ url: "private/holding-photos/def.jpg" }],
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any;
+
+    const result = toPublicCheckIn(checkInWithPrivateDataAttached);
+
+    expect(result).toEqual({
+      loggedAt: new Date("2024-04-10"),
+      placeLabel: "Denver, CO",
+      holderDisplayName: "tim",
+      lat: 39.7,
+      lng: -105.0,
+    });
+    expect(result).not.toHaveProperty("note");
+    expect(result).not.toHaveProperty("photos");
+    expect(JSON.stringify(result)).not.toContain("friend's desk");
+    expect(JSON.stringify(result)).not.toContain("holding-photos");
+  });
+
+  it("honours show_name_publicly", () => {
+    const checkIn = {
+      loggedAt: new Date(),
+      placeLabel: "Osaka, Japan",
+      lat: 34.7,
+      lng: 135.5,
+      holder: { username: "sarah", showNamePublicly: false },
+    };
+    expect(toPublicCheckIn(checkIn).holderDisplayName).toBe("a collector");
   });
 });

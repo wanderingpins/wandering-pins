@@ -14,3 +14,6 @@ export const MAX_RAW_UPLOAD_BYTES = 10 * 1024 * 1024;
 // What the client-side cropper aims for when it re-encodes the crop —
 // generous enough to stay sharp, small enough to be a quick upload.
 export const TARGET_UPLOAD_BYTES = 2 * 1024 * 1024;
+
+// Cap on photos per location check-in.
+export const MAX_CHECKIN_PHOTOS = 5;

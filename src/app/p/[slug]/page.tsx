@@ -3,8 +3,8 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { parseSlug } from "@/lib/slug";
 import { getAuthClaims } from "@/lib/auth";
-import { buildTimeline, formatMonthYear } from "@/lib/timeline";
-import { toPublicHolding } from "@/lib/public-pin";
+import { buildJourneyTimeline, formatMonthYear } from "@/lib/timeline";
+import { toPublicHolding, toPublicCheckIn } from "@/lib/public-pin";
 import { PinJourneyTimeline } from "@/components/PinJourneyTimeline";
 import { PinJourneyMap } from "@/components/PinJourneyMap";
 
@@ -35,11 +35,18 @@ export default async function PinPage({ params }: Props) {
         // near-simultaneous claims) don't leave "the latest" ambiguous — id
         // is cuid-monotonic, so it breaks ties in creation order.
         orderBy: [{ acquiredAt: "asc" }, { id: "asc" }],
-        // title/photos/note are loaded here for convenience but never touch
-        // toPublicHolding below — see the dedicated public-title/photo
-        // section further down, and the private "Your notes" section, for
-        // the only two places these leave this file.
-        include: { user: true, title: true, photos: true, note: true },
+        // title/photos/note/checkIns are loaded here for convenience but
+        // never touch toPublicHolding/toPublicCheckIn below — see the
+        // dedicated public-title/photo section further down, and the
+        // private "Your notes"/"Your locations" sections, for the only
+        // places these leave this file.
+        include: {
+          user: true,
+          title: true,
+          photos: true,
+          note: true,
+          checkIns: { orderBy: { loggedAt: "asc" }, include: { note: true, photos: true } },
+        },
       },
     },
   });
@@ -52,16 +59,33 @@ export default async function PinPage({ params }: Props) {
     return <UnregisteredPin slug={parsed.slug} />;
   }
 
-  const holdings = pin.holdings.map(toPublicHolding);
-  const lines = buildTimeline(holdings);
-  const points = holdings.map((h) => ({ lat: h.lat, lng: h.lng, label: h.placeLabel }));
+  // A pending (tentative, not-yet-released) holding is structurally kept out
+  // of every public computation below — it's not the real journey yet. Only
+  // `confirmedHoldings` ever feeds toPublicHolding/toPublicCheckIn, the
+  // timeline, the map, or the public title/photo.
+  const confirmedHoldings = pin.holdings.filter((h) => !h.pending);
 
-  // At most one open holding per pin (restored partial unique index —
+  const publicHoldings = confirmedHoldings.map(toPublicHolding);
+  const publicCheckIns = confirmedHoldings.flatMap((h) =>
+    h.checkIns.map((c) => toPublicCheckIn({ ...c, holder: h.user }))
+  );
+  const lines = buildJourneyTimeline(publicHoldings, publicCheckIns);
+  const points = [
+    ...publicHoldings.map((h) => ({ at: h.acquiredAt, lat: h.lat, lng: h.lng, label: h.placeLabel })),
+    ...publicCheckIns.map((c) => ({ at: c.loggedAt, lat: c.lat, lng: c.lng, label: c.placeLabel })),
+  ]
+    .sort((a, b) => a.at.getTime() - b.at.getTime())
+    .map(({ lat, lng, label }) => ({ lat, lng, label }));
+
+  // At most one CONFIRMED open holding per pin (partial unique index —
   // release is atomic and one-sided, brief section 6.4, so there's never an
-  // overlap, only a gap between someone releasing and someone else claiming).
-  const openHolding = pin.holdings.find((h) => h.releasedAt === null);
+  // overlap, only a gap between someone releasing and someone else
+  // claiming). A pending claim on the same pin can coexist and is handled
+  // separately below.
+  const openHolding = confirmedHoldings.find((h) => h.releasedAt === null);
   const claims = await getAuthClaims();
   const isCurrentHolder = !!claims && claims.sub === openHolding?.userId;
+  const ownPendingHolding = claims ? pin.holdings.find((h) => h.pending && h.userId === claims.sub) : undefined;
 
   // Title and (front) photo are a deliberate, narrow exception to "no
   // user-typed text or user-uploaded image on a public page" (brief section
@@ -78,10 +102,17 @@ export default async function PinPage({ params }: Props) {
     ? pin.holdings.filter((h) => h.userId === claims.sub && h.note?.body)
     : [];
 
+  // Same idea for check-ins: a viewer's own private description/photos on a
+  // location they logged, regardless of whether that holding is still open.
+  const ownCheckIns = claims
+    ? pin.holdings
+        .filter((h) => h.userId === claims.sub)
+        .flatMap((h) => h.checkIns.filter((c) => c.note?.body || c.photos.length > 0).map((c) => ({ ...c, holdingId: h.id })))
+    : [];
+
   return (
     <main className="mx-auto max-w-2xl px-4 py-10">
-      <p className="text-sm text-neutral-500">Pin {parsed.slug}</p>
-      <p className="mt-1 text-lg font-medium text-neutral-800">{publicTitle}</p>
+      <p className="text-lg font-medium text-neutral-800">{publicTitle}</p>
       <h1 className="mt-1 text-2xl font-semibold">Its journey so far</h1>
 
       {hasPublicPhoto && (
@@ -125,6 +156,31 @@ export default async function PinPage({ params }: Props) {
         </div>
       )}
 
+      {ownCheckIns.length > 0 && (
+        <div className="mt-8">
+          <p className="inline-flex items-center gap-1.5 rounded-full bg-neutral-100 px-3 py-1 text-xs font-medium text-neutral-600">
+            🔒 Only you can see this
+          </p>
+          <h2 className="mt-2 text-sm font-semibold uppercase tracking-wide text-neutral-500">Your locations</h2>
+          <ul className="mt-3 space-y-4">
+            {ownCheckIns.map((c) => (
+              <li key={c.id} className="rounded-lg border border-neutral-200 p-4">
+                <p className="text-xs text-neutral-500">
+                  🌐 {c.placeLabel} · {formatMonthYear(c.loggedAt)}
+                </p>
+                {c.note?.body && <p className="mt-1 whitespace-pre-wrap text-sm text-neutral-800">{c.note.body}</p>}
+                <Link
+                  href={`/holdings/${c.holdingId}`}
+                  className="mt-2 inline-block text-sm text-blue-600 hover:underline"
+                >
+                  Edit
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       <div className="mt-10 rounded-lg border border-neutral-200 p-4">
         {isCurrentHolder ? (
           <>
@@ -136,6 +192,10 @@ export default async function PinPage({ params }: Props) {
               Log a trade
             </Link>
           </>
+        ) : ownPendingHolding ? (
+          <p className="text-sm text-neutral-700">
+            ⏳ Your claim on this pin is pending — it&apos;ll join this journey once the current holder releases it.
+          </p>
         ) : (
           <>
             <p className="text-sm text-neutral-700">Think you have this pin now?</p>
@@ -155,8 +215,7 @@ export default async function PinPage({ params }: Props) {
 function UnregisteredPin({ slug }: { slug: string }) {
   return (
     <main className="mx-auto max-w-2xl px-4 py-10">
-      <p className="text-sm text-neutral-500">Pin {slug}</p>
-      <h1 className="mt-1 text-2xl font-semibold">This pin hasn&apos;t been registered yet.</h1>
+      <h1 className="text-2xl font-semibold">This pin hasn&apos;t been registered yet.</h1>
       <p className="mt-3 text-neutral-700">
         Every Wandering Pins code is printed before anyone has claimed it. If this one is yours,
         register it now to start its journey.

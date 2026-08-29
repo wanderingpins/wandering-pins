@@ -33,9 +33,29 @@ export function holdingToProse(holding: TimelineHolding): string {
   return `${formatAcquisition(holding.acquiredVia, holding.placeLabel, holding.acquiredAt)} · ${holding.holderDisplayName}`;
 }
 
-// Expects holdings already sorted ascending by acquiredAt (oldest first).
-export function buildTimeline(holdings: TimelineHolding[]): string[] {
-  return holdings.map(holdingToProse);
+// A check-in — the pin moved without being released (see HoldingCheckIn in
+// the schema) — reuses the same structured-only discipline as
+// TimelineHolding: no free-typed text or images ever feed this.
+export type TimelineCheckIn = {
+  loggedAt: Date;
+  placeLabel: string;
+  holderDisplayName: string;
+};
+
+export function checkInToProse(checkIn: TimelineCheckIn): string {
+  return `Spotted in ${checkIn.placeLabel} · ${formatMonthYear(checkIn.loggedAt)} · ${checkIn.holderDisplayName}`;
+}
+
+// Merges holding-acquisition events and check-in events into one
+// chronologically-ordered timeline (oldest first) — a holder can log that
+// a pin moved without releasing it, so the journey isn't just one line per
+// holding anymore.
+export function buildJourneyTimeline(holdings: TimelineHolding[], checkIns: TimelineCheckIn[]): string[] {
+  const holdingEvents = holdings.map((h) => ({ at: h.acquiredAt, line: holdingToProse(h) }));
+  const checkInEvents = checkIns.map((c) => ({ at: c.loggedAt, line: checkInToProse(c) }));
+  return [...holdingEvents, ...checkInEvents]
+    .sort((a, b) => a.at.getTime() - b.at.getTime())
+    .map((e) => e.line);
 }
 
 // username is guaranteed non-null for anyone who's ever held a pin — holding

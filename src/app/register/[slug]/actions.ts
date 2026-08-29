@@ -17,13 +17,24 @@ const registerSchema = z.object({
   notes: z.string().optional(),
 });
 
-// Handles both a never-before-claimed (MINTED) pin and an already-REGISTERED
-// pin someone released with no specific recipient (brief section 6.4) —
-// either way, "no open holding exists" is the real precondition. Only flips
-// pin.status/registeredAt the first time; a re-registration leaves those
-// alone. The unique-constraint catch (not a pre-check) is what actually
-// guards against two people racing to register the same pin at once — the
-// restored partial unique index on pin_holdings is the real guarantee.
+// Handles four cases:
+//  1. Never-before-claimed (MINTED), or already-REGISTERED but released with
+//     no recipient (brief section 6.4) — no open holding exists at all, so
+//     this is an ordinary immediate claim, same as always.
+//  2. A confirmed open holding exists, belongs to someone else, and no one
+//     has a pending claim on it yet — creates a tentative/"unreleased"
+//     holding instead of blocking outright (reverses the previous
+//     behavior). It records everything normally; it just isn't the real
+//     open holding yet, so it won't appear on the public page until the
+//     current holder releases and it auto-promotes (see releasePin).
+//  3. The confirmed open holding already belongs to *this* user — rejected,
+//     nothing to claim.
+//  4. A pending claim already exists (by anyone) — rejected; only one
+//     pending claim per pin at a time.
+// The unique-constraint catch (not a pre-check) is what actually guards
+// against a race on any of these — the two partial unique indexes on
+// pin_holdings (one for confirmed-open, one for pending) are the real
+// guarantee, this is just a friendlier message ahead of that.
 export async function registerPin(
   slug: string,
   _prevState: RegisterState,
@@ -46,8 +57,20 @@ export async function registerPin(
     where: { slug },
     include: { holdings: { where: { releasedAt: null } } },
   });
-  if (!pin || pin.holdings.length > 0) {
+  if (!pin) {
     return { status: "error", message: "This pin can't be registered right now." };
+  }
+
+  const confirmedHolding = pin.holdings.find((h) => !h.pending);
+  const pendingHolding = pin.holdings.find((h) => h.pending);
+  if (confirmedHolding?.userId === user.id) {
+    return { status: "error", message: "You already have this pin." };
+  }
+  if (pendingHolding) {
+    return {
+      status: "error",
+      message: "Someone's already tentatively claimed this pin — check back once the current holder releases it.",
+    };
   }
 
   const geocoded = await geocodePlace(parsed.data.place);
@@ -55,8 +78,10 @@ export async function registerPin(
     return { status: "error", message: "Couldn't find that place — try a city name." };
   }
 
+  const isPending = !!confirmedHolding;
+  let holdingId: string;
   try {
-    await prisma.$transaction(async (tx) => {
+    holdingId = await prisma.$transaction(async (tx) => {
       if (pin.status === "MINTED") {
         await tx.pin.update({
           where: { id: pin.id },
@@ -72,6 +97,7 @@ export async function registerPin(
           placeLabel: geocoded.placeLabel,
           lat: geocoded.lat,
           lng: geocoded.lng,
+          pending: isPending,
         },
       });
       if (parsed.data.title) {
@@ -80,13 +106,22 @@ export async function registerPin(
       if (parsed.data.notes) {
         await tx.holdingNote.create({ data: { holdingId: holding.id, body: parsed.data.notes } });
       }
+      return holding.id;
     });
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
-      return { status: "error", message: "Someone just registered this pin — you were a moment too late." };
+      return {
+        status: "error",
+        message: isPending
+          ? "Someone just tentatively claimed this pin — you were a moment too late."
+          : "Someone just registered this pin — you were a moment too late.",
+      };
     }
     throw error;
   }
 
-  redirect(`/p/${slug}`);
+  // A pending claim doesn't show up on the public page yet, so send the
+  // claimant to their own holding instead of somewhere that'd look like
+  // nothing happened.
+  redirect(isPending ? `/holdings/${holdingId}` : `/p/${slug}`);
 }

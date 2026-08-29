@@ -1,6 +1,6 @@
 # Wandering Pins — handoff notes
 
-Status as of 2026-08-29: v1 built per WANDERING_PINS_BRIEF.md, deployed, and live at wanderingpins.com. Since the initial build: added user profiles/auth, replaced addressed trades with unaddressed release, added camera-based QR scanning to pin lookup, added camera capture/crop/size-limits to holding photos, settled the physical sticker sheet's design, made the current holder's title and front photo public on the pin journey page (explicit user decision, loosening a brief-section-7 guarantee) while keeping notes permanently private, closed a real `rls_disabled_in_public` gap on every table, added timeouts around every Supabase Auth network call (middleware session-refresh, sign-in, and confirmation-link exchange) so a degraded Auth API can no longer stall the whole site or hang a sign-in attempt, and made `/my-pins` rows show a photo/acquisition/current-location summary instead of just a name and date. See "Since v1" and "Since v1 continued" below for details, "Known open items" for what's still open, and "Future ideas" for what's discussed but not started. A new Claude Code session opened in this folder should read this file first, then the brief (which is kept in sync with current behavior, not historical).
+Status as of 2026-08-29: v1 built per WANDERING_PINS_BRIEF.md, deployed, and live at wanderingpins.com. Since the initial build: added user profiles/auth, replaced addressed trades with unaddressed release, added camera-based QR scanning to pin lookup, added camera capture/crop/size-limits to holding photos, settled the physical sticker sheet's design, made the current holder's title and front photo public on the pin journey page (explicit user decision, loosening a brief-section-7 guarantee) while keeping notes permanently private, closed a real `rls_disabled_in_public` gap on every table, added timeouts around every Supabase Auth network call (middleware session-refresh, sign-in, and confirmation-link exchange) so a degraded Auth API can no longer stall the whole site or hang a sign-in attempt, made `/my-pins` rows show a photo/acquisition/current-location summary instead of just a name and date, let a holder log that a pin moved to a new location without releasing it (private photos/description, public place/date), let someone tentatively claim a still-held pin (invisible on the public page until the real holder releases, then auto-promotes), and stopped rendering the pin's raw code as text on its public journey page. See "Since v1" and "Since v1 continued" below for details, "Known open items" for what's still open, and "Future ideas" for what's discussed but not started. A new Claude Code session opened in this folder should read this file first, then the brief (which is kept in sync with current behavior, not historical).
 
 ## Since v1 (2026-08-08)
 
@@ -71,10 +71,75 @@ Verified: full test suite (including the two new `with-timeout.test.ts` cases) p
 
 Pushed to `main` in commit `185855f` — deployed via the usual Vercel auto-deploy.
 
+## Since v1 continued (2026-08-29), part 4
+
+Three related changes to the pin page, landed together — see the conversation for the clarifying
+questions that settled the ambiguous parts before any code was written.
+
+**Location check-ins.** A holder can now log that their pin moved to a new place without releasing
+it — a mini-timeline within one holding, the "Future ideas" item from part 2 above, now built.
+
+- New models: `HoldingCheckIn` (public: `holdingId`, `loggedAt`, `placeLabel`, `lat`, `lng`) plus
+  private `HoldingCheckInNote` (optional description) and `HoldingCheckInPhoto` (up to 5, capped in
+  `uploadCheckInPhoto`, no DB-level COUNT constraint). Same public/private split discipline as
+  `pin_holdings` vs. `holding_notes`/`holding_photos`.
+- New actions in `src/app/holdings/[holdingId]/checkin-actions.ts`; a "Locations" section on the
+  holding detail page reuses the existing `PhotoCropModal`/`cropPhotoToBlob` (already generic); a new
+  auth-gated route `/api/check-ins/[checkInId]/photos/[photoId]` mirrors the existing holding-photo
+  route. Only addable against a real (non-pending), still-open holding.
+- **Photos and descriptions stay private** — no moderation filter exists yet (see "Photo content
+  moderation" below), so this doesn't repeat the front-photo precedent's interim risk. Place/date
+  join the public map and timeline via new `buildJourneyTimeline`/`toPublicCheckIn`
+  (`src/lib/timeline.ts`, `src/lib/public-pin.ts`), interleaved chronologically with holdings —
+  `public-pin.test.ts` got the same "extra properties can't leak" regression coverage
+  `toPublicHolding` already had.
+
+**Tentative ("unreleased") claims — reverses a prior decision.** Registering a pin that's still
+actively held by someone else used to be blocked outright. Now it's allowed, but tentatively:
+
+- `pin_holdings` gained a `pending` boolean; the old "one open holding per pin" partial unique index
+  was replaced with two — one for the real confirmed holding (`pending = false`), one for a pending
+  claim (`pending = true`) — so both can coexist per pin, but never two of either kind. See the
+  updated section 5 of the brief for the exact invariant.
+- `registerPin` (`src/app/register/[slug]/actions.ts`) now has four cases instead of one binary
+  check; `releasePin` (`src/app/trade/[slug]/actions.ts`) auto-promotes a pending claim in the same
+  transaction as the release, no extra step for the claimant. A real bug caught along the way: the
+  trade page's own holding lookup didn't filter out pending holdings, which would have let a
+  tentative claimant see "log a trade" for a pin they don't actually physically have — fixed with a
+  `pending: false` filter.
+- Surfaced as a new "Pending" section on My Pins (between "Currently have" and "Ever had," which now
+  excludes pending rows too) and an "⏳ Unreleased" banner on the holding page and the pin's own
+  public-page CTA (for the claimant only — never leaked to anyone else).
+- New integration tests in `pin-holdings.integration.test.ts` cover both partial unique indexes
+  directly against the real test DB, same style as the existing open-holding constraint tests.
+
+**Hid the pin code from the public page.** `/p/[slug]` no longer renders `Pin {slug}` as text, for
+anyone, logged in or not — reverses the original brief section 7, which listed the slug as public.
+The code still has to appear in the URL to reach the page (unavoidable), but a stranger reading the
+page can no longer learn it by looking. Added a small code line to My Pins rows instead, since that
+and the (already auth-gated) holding detail page are now the only two places you see your own code.
+
+Verified end-to-end live in the browser with two throwaway Supabase Auth accounts and a freshly
+minted test pin (both fully cleaned up afterward, no lasting data left behind): registered fresh,
+logged a check-in with a photo and description, confirmed the public page showed the check-in's
+place/date but not its photo/description and not the pin code; claimed the same still-held pin from
+the second account and confirmed it showed as pending on My Pins and nowhere on the public page;
+released from the first account and confirmed auto-promotion. `tsc`, `eslint`, and the full test
+suite (73 tests) all clean.
+
+`WANDERING_PINS_BRIEF.md` sections 5, 6.3–6.8, and 7 were updated to match — this is the same scale
+of change as the trade/user-profile rewrites earlier, not a narrow implementation deviation, so it
+went in the brief itself rather than only here.
+
 ## Future ideas (not started, not committed to)
 
-- **Multi-location per-visit logging**: right now a holding has one place/date/note. The user is considering letting a single holder log the pin visiting *multiple* locations during their stint — each with its own photo(s) and description, essentially a mini-timeline within a holding. Bigger schema change (new child model under `PinHolding`), not started.
-- **Photo content moderation** (porn/violence filtering) before a photo is accepted, especially now that front photos are public. AWS Rekognition (`DetectModerationLabels`, ~$1.00/1,000 images after a 12-month free tier of 1,000/mo) vs. Google Vision SafeSearch (~$1.50/1,000 units, but the 1,000/mo free tier recurs monthly, not just for a year) were compared — both cheap at this app's likely volume. Not started; needs a new cloud account + credentials either way, which is why it wasn't just wired in.
+- **Photo content moderation** (porn/violence filtering) before a photo is accepted — now relevant
+  to both the current holder's public front photo and every check-in's private photos, so that they
+  could go public later too. AWS Rekognition (`DetectModerationLabels`, ~$1.00/1,000 images after a
+  12-month free tier of 1,000/mo) vs. Google Vision SafeSearch (~$1.50/1,000 units, but the 1,000/mo
+  free tier recurs monthly, not just for a year) were compared — both cheap at this app's likely
+  volume. Not started; needs a new cloud account + credentials either way, which is why it wasn't
+  just wired in.
 - **Location "verification"** via the browser's Geolocation API: type a place in as today (shows "Unverified"), then a "Verify" button captures the device's actual GPS coordinates and checks them against the place's already-geocoded lat/lng within some distance tolerance, marking the entry "Verified" if it's close enough. Technically feasible with no new paid service, but worth going in with eyes open: city-level geocoding can legitimately be tens of km off from a specific spot, so the tolerance has to be generous (weakening how much "verified" really proves); it only makes sense to prompt for location *at the moment of logging*, not after the fact; and it's not tamper-proof (devtools/GPS-spoofing can fake it) — more an honesty nudge than a hard guarantee. Recommend never storing the raw device coordinates themselves (only the resulting verified/not-verified flag), since that's a more sensitive category of data than anything stored today. Not started.
 
 ## Live setup
@@ -99,6 +164,7 @@ The brief got some things right in principle but wrong in a couple of real-world
 ## Useful scripts
 
 - `node scripts/mint-batch.ts <label> <quantity> [outDir]` — mint N real pins + QR PNGs + manifest.
+- `npx tsx --env-file=.env scripts/mint-one.ts` — mint a single `MINTED` pin (prints its slug), no QR/manifest — the quick way to get a throwaway pin for manual testing without a whole batch.
 - `node scripts/make-sticker-sheet.mjs <batchDir> [codeSizeMm=6] [outPath]` — true-size printable PDF sheet from a mint-batch output dir, laid out as an auto-paginating grid (as many stickers per LETTER page as fit, spilling to further pages for larger batches). Must print at 100%/actual size, not "fit to page" — see Deviations #7 for the settled sticker shape/sizing this now draws.
 - `npx tsx --env-file=.env scripts/gen-test-link.ts [email]` — mint a real Supabase session token via the admin API, for testing auth-gated flows without an inbox round-trip. For a brand-new email this is a signup token (`type=signup`), not `magiclink` — use whichever `type` the script's own output reports. Since onboarding shipped, a fresh account landing anywhere via `/auth/confirm` gets redirected to `/onboarding` first (pick a username + password) before reaching wherever `next` pointed — that's expected, not a bug.
 - If testing locally with two accounts side by side in the Browser pane, remember tabs in the same browser instance **share one cookie jar** — signing in as a second user in a new tab silently switches the first tab's session too. Re-authenticate (fresh `gen-test-link.ts` token) whichever account you need to check next rather than assuming an old tab still reflects an old session.
@@ -113,4 +179,4 @@ The brief got some things right in principle but wrong in a couple of real-world
 
 ## Test coverage
 
-67 vitest tests (`npm test`), mix of pure-logic and live-integration (hits the real Supabase DB and MapTiler API — needs `.env` populated). `npx tsc --noEmit` and `npx eslint .` should both be clean before committing.
+73 vitest tests (`npm test`), mix of pure-logic and live-integration (hits the real Supabase DB and MapTiler API — needs `.env` populated). `npx tsc --noEmit` and `npx eslint .` should both be clean before committing.

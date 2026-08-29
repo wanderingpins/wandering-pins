@@ -6,6 +6,10 @@ import { formatMonthYear } from "@/lib/timeline";
 import { DetailsForm } from "./DetailsForm";
 import { PhotoUploadForm } from "./PhotoUploadForm";
 import { deletePhoto } from "./actions";
+import { AddCheckInForm } from "./AddCheckInForm";
+import { CheckInNoteForm } from "./CheckInNoteForm";
+import { CheckInPhotoUploadForm } from "./CheckInPhotoUploadForm";
+import { deleteCheckIn, deleteCheckInPhoto } from "./checkin-actions";
 
 type Props = { params: Promise<{ holdingId: string }> };
 
@@ -22,12 +26,22 @@ export default async function HoldingPage({ params }: Props) {
     );
   }
 
-  const [pin, title, note, photos] = await Promise.all([
+  const [pin, title, note, photos, checkIns] = await Promise.all([
     prisma.pin.findUniqueOrThrow({ where: { id: holding.pinId } }),
     prisma.pinTitle.findUnique({ where: { holdingId } }),
     prisma.holdingNote.findUnique({ where: { holdingId } }),
     prisma.holdingPhoto.findMany({ where: { holdingId }, orderBy: { createdAt: "asc" } }),
+    prisma.holdingCheckIn.findMany({
+      where: { holdingId },
+      orderBy: { loggedAt: "asc" },
+      include: { note: true, photos: { orderBy: { createdAt: "asc" } } },
+    }),
   ]);
+
+  // A check-in is public movement, so it can only be logged against the
+  // real, confirmed current holding — not a tentative/pending one, and not
+  // a closed one (that stint is over).
+  const canAddCheckIn = holding.releasedAt === null && !holding.pending;
 
   return (
     <main className="mx-auto max-w-md px-4 py-10">
@@ -42,6 +56,12 @@ export default async function HoldingPage({ params }: Props) {
       {holding.releasedAt && (
         <p className="mt-2 text-sm text-neutral-600">
           You let this pin go — add any details below, private and optional.
+        </p>
+      )}
+      {holding.pending && (
+        <p className="mt-2 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800">
+          ⏳ Unreleased — the current holder hasn&apos;t let this pin go yet. It&apos;s on your account, but it
+          won&apos;t show up on this pin&apos;s public journey until they do.
         </p>
       )}
 
@@ -65,7 +85,7 @@ export default async function HoldingPage({ params }: Props) {
         {photos.length > 0 && (
           <ul className="mt-3 grid grid-cols-3 gap-3">
             {photos.map((photo) => {
-              const isPublic = photo.kind === "FRONT" && holding.releasedAt === null;
+              const isPublic = photo.kind === "FRONT" && canAddCheckIn;
               return (
                 <li key={photo.id} className="relative">
                   {/* eslint-disable-next-line @next/next/no-img-element -- private, per-user image behind an auth-gated route; next/image's optimizer would need its own auth pass-through */}
@@ -93,6 +113,80 @@ export default async function HoldingPage({ params }: Props) {
         <div className="mt-4">
           <PhotoUploadForm holdingId={holdingId} />
         </div>
+      </section>
+
+      <section className="mt-10">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-500">Locations</h2>
+        <p className="mt-2 text-xs text-neutral-500">
+          🌐 The place and date of each entry are public, same as where you got it. Photos and descriptions here
+          always stay private.
+        </p>
+
+        {checkIns.length > 0 && (
+          <ul className="mt-4 flex flex-col gap-4">
+            {checkIns.map((checkIn) => (
+              <li key={checkIn.id} className="rounded-lg border border-neutral-200 p-4">
+                <div className="flex items-start justify-between gap-2">
+                  <p className="text-sm font-medium">
+                    🌐 {checkIn.placeLabel} · {formatMonthYear(checkIn.loggedAt)}
+                  </p>
+                  <form action={deleteCheckIn.bind(null, checkIn.id)}>
+                    <button type="submit" className="text-xs text-neutral-400 hover:text-red-600">
+                      Remove
+                    </button>
+                  </form>
+                </div>
+
+                <div className="mt-3">
+                  <CheckInNoteForm checkInId={checkIn.id} initialBody={checkIn.note?.body ?? ""} />
+                </div>
+
+                {checkIn.photos.length > 0 && (
+                  <ul className="mt-3 grid grid-cols-3 gap-2">
+                    {checkIn.photos.map((photo) => (
+                      <li key={photo.id} className="relative">
+                        {/* eslint-disable-next-line @next/next/no-img-element -- private, per-user image behind an auth-gated route */}
+                        <img
+                          src={`/api/check-ins/${checkIn.id}/photos/${photo.id}`}
+                          alt=""
+                          className="aspect-square w-full rounded-md object-cover"
+                        />
+                        <form
+                          action={deleteCheckInPhoto.bind(null, checkIn.id, photo.id)}
+                          className="absolute right-1 top-1"
+                        >
+                          <button
+                            type="submit"
+                            className="rounded-full bg-black/60 px-2 py-0.5 text-xs text-white hover:bg-black/80"
+                          >
+                            &times;
+                          </button>
+                        </form>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <div className="mt-3">
+                  <CheckInPhotoUploadForm checkInId={checkIn.id} photoCount={checkIn.photos.length} />
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {canAddCheckIn ? (
+          <div className="mt-4">
+            <AddCheckInForm holdingId={holdingId} />
+          </div>
+        ) : (
+          checkIns.length === 0 && (
+            <p className="mt-3 text-sm text-neutral-500">
+              {holding.pending
+                ? "You can log locations once this claim is confirmed."
+                : "This stint is over, so no new locations can be logged here."}
+            </p>
+          )
+        )}
       </section>
     </main>
   );

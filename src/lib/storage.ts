@@ -10,12 +10,15 @@ function adminStorage() {
   return client.storage.from(BUCKET);
 }
 
+// `ownerKey` is just a folder prefix — a holding id for a holding's own
+// photos, a check-in id for a check-in's (see checkin-actions.ts). Nothing
+// here cares which; both live in the same private bucket.
 export async function uploadHoldingPhoto(
-  holdingId: string,
+  ownerKey: string,
   buffer: Buffer,
   contentType: string
 ): Promise<string> {
-  const path = `${holdingId}/${randomUUID()}.jpg`;
+  const path = `${ownerKey}/${randomUUID()}.jpg`;
   const { error } = await adminStorage().upload(path, buffer, { contentType, upsert: false });
   if (error) throw error;
   return path;

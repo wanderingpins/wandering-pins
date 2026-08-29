@@ -203,13 +203,45 @@ One row per person-per-stint-with-a-pin. This table renders the public page.
 | `place_label` | derived city string, e.g. "Orlando, FL" |
 | `lat`, `lng` | **coarse — city centroid, never precise** |
 | `released_at` | nullable; null means they still have it |
+| `pending` | boolean, default false — see below. The one field on this table that is **not** public |
 
-Constraints: at most one holding per pin with `released_at IS NULL`. That open holding is the
-current owner. A user's full history is simply all their holdings, open and closed — this is what
-"every pin I have ever had" means.
+Constraints: at most one holding per pin with `released_at IS NULL AND pending = false` (the real
+current owner), and separately, at most one holding per pin with `released_at IS NULL AND pending =
+true` (a tentative claim — see section 6.3). The two can coexist; neither can duplicate. A user's
+full history is simply all their non-pending holdings, open and closed — this is what "every pin I
+have ever had" means. A pending holding doesn't count as "ever had" yet, since it was never actually
+confirmed.
 
-**Every field on this table is public.** Nothing free-typed appears here, which is deliberate; see
-section 7.
+**Every field on this table is public except `pending` itself.** A pending holding's own row is kept
+out of the public page entirely until it stops being pending (see section 6.3) — `pending` isn't a
+private *field* so much as a gate on whether the whole row is public yet. Nothing free-typed appears
+here, which is deliberate; see section 7.
+
+### `holding_check_ins` — a mini-timeline within one holding
+
+Lets the current holder log that the pin moved to a new place without releasing it — e.g. carried it
+on a trip through three cities before finally trading it away. Public, same discipline as
+`pin_holdings`.
+
+| field | notes |
+|---|---|
+| `id`, `holding_id` | |
+| `logged_at` | date the pin was at this place |
+| `place_label` | derived city string, same shape as `pin_holdings.place_label` |
+| `lat`, `lng` | **coarse — city centroid, never precise** |
+
+Renders as an additional line in the public timeline/map, interleaved chronologically with the
+holding's own acquisition line and any other holdings on the same pin. Only creatable against a real
+(non-pending), still-open holding — a tentative claim hasn't actually got the pin yet, and a closed
+holding's stint is over.
+
+### `holding_check_in_notes` / `holding_check_in_photos` — private
+
+Same shape and privacy as `holding_notes`/`holding_photos` below, scoped to a check-in instead of a
+holding: an optional free-typed description of what happened at that location, and up to 5 photos.
+**Never rendered on any public page** — no moderation surface exists for them yet (section 7), so
+they follow the same rule that kept photos private in v1, rather than repeating the narrower
+title/photo exception made for the current holder's own front photo.
 
 ### `holding_notes` — private
 
@@ -292,19 +324,33 @@ email, magic-link sign-in is the recovery path — no separate "forgot password"
 
 ### 6.3 Register a pin
 
-Authenticated. Claim a `MINTED` slug, or claim a `REGISTERED` pin that currently has no holder
-(section 6.4) — same form either way, since the only real precondition is "no open holding exists."
+Authenticated. Three cases, all through the same form (how you got it, roughly when, a coarse
+location, and optionally a private title/notes/photos):
 
-Capture: how you got it (`acquired_via`), roughly when, and a coarse location. Optionally a private
-title, private notes, and private photos. Opens a holding.
+- **No open holding exists** — a never-before-claimed `MINTED` slug, or a `REGISTERED` pin someone
+  released with no holder (section 6.4). An ordinary, immediate claim: opens a real holding right
+  away.
+- **A confirmed holding exists, belonging to someone else, and no one's pending yet** — reverses an
+  earlier, stricter decision to block this outright. Registering now opens a *tentative* holding
+  (`pending = true`, section 5): it shows up on the claimant's own My Pins right away, labeled
+  unreleased, but it is **not** part of the public page yet — no map point, no timeline line, not
+  even acknowledgment that a claim exists. It only becomes real when the current holder releases
+  (section 6.4), which auto-promotes it with no further action from the claimant. At most one
+  pending claim per pin at a time; a second attempt while one is outstanding is rejected with a
+  friendly message, not silently queued.
+- **A confirmed holding already belongs to the requesting user, or a pending claim already exists**
+  — rejected; nothing to claim.
 
 ### 6.4 Log a trade
 
 Authenticated. The current holder releases the pin with **no recipient specified at all** — this is
 the whole point. One click closes their holding and moves it to "ever had" immediately; there is no
-pending state, no email or username to provide, and nothing to wait on. Think of a pin left on a
-pinboard for a stranger to find: the two people never interact, and the giver usually has no idea
-who ends up with it next.
+pending state *for the releaser*, no email or username to provide, and nothing for them to wait on.
+Think of a pin left on a pinboard for a stranger to find: the two people never interact, and the
+giver usually has no idea who ends up with it next.
+
+If someone already has a tentative claim on this pin (section 6.3), releasing auto-promotes it to
+the real open holding in the same action — the pin is never left looking unclaimed in the gap.
 
 Afterward, optionally and privately (only the person who released it ever sees this): when they let
 it go, where, and anything else about the trade ("gave it to a friend," "left it for someone to
@@ -314,22 +360,35 @@ Whoever finds the pin later scans its own sticker code and goes through 6.3 abov
 had never been registered. There's no invite, no addressing, nothing for the previous holder to do
 or be notified about.
 
-### 6.5 My pins
+### 6.5 Log a location without releasing
 
-Authenticated. Two views off one page:
+Authenticated, scoped to your own confirmed (non-pending), still-open holding. Log that the pin
+moved to a new place while you still have it — carrying it on a trip, say — without closing your
+holding. Captures a place and a date, same as registering; optionally a private description of what
+happened there, and up to 5 private photos. See `holding_check_ins` in section 5.
 
-- **Currently have** — open holdings.
-- **Ever had** — every holding, open and closed, newest first. Each entry links to that pin's public
-  journey page, so a collector can see where a pin went *after* they let it go. That "what happened
-  to it next" moment is a core part of the appeal — make it prominent rather than burying it.
+The place and date join the public map/timeline as an additional line, interleaved chronologically
+with every holding's own acquisition line; the description and photos never do (section 7).
 
-### 6.6 Private notes and photos
+### 6.6 My pins
+
+Authenticated. Three views off one page:
+
+- **Currently have** — confirmed, open holdings.
+- **Pending** — your own tentative claims (section 6.3), labeled unreleased. Not shown on any public
+  page yet.
+- **Ever had** — every confirmed holding, open and closed, newest first. Each entry links to that
+  pin's public journey page, so a collector can see where a pin went *after* they let it go. That
+  "what happened to it next" moment is a core part of the appeal — make it prominent rather than
+  burying it.
+
+### 6.7 Private notes and photos
 
 Authenticated, scoped to one of your own holdings. Add and edit a blurb, a title, and photos.
 Visible only to you. Make the privacy obvious in the UI — a small persistent "only you can see this"
 affordance, not a one-time tooltip.
 
-### 6.7 Account settings
+### 6.8 Account settings
 
 Authenticated, self-only — there is no public profile page for viewing *other* users' settings, just
 this one page for editing your own. Two independent forms:
@@ -350,16 +409,23 @@ This section is a hard boundary. Do not soften it without an explicit product de
 
 ### Public — visible to anyone who scans
 
-- The pin's slug
-- Its holdings: acquisition method, coarse city, date
+- Its confirmed (non-pending) holdings: acquisition method, coarse city, date
+- Its check-ins: coarse city, date (section 6.5) — never the description or photos
 - Holder usernames, subject to `show_name_publicly`
 
 That is the complete list, and every item is **structured** — chosen from an enum, derived from a
 geocoder, or a date. **No user-typed text and no user-uploaded images appear on any public page.**
 
+The pin's slug itself is **no longer rendered as text on `/p/{slug}`**, for anyone — reverses the
+original design, which listed it as public. It still has to appear in the URL to reach the page at
+all (there's no way around that), but a stranger reading the page can no longer learn the code by
+looking at it. You still see your own pin's code on My Pins and its private holding-detail page.
+
 ### Private — visible only to the person who wrote it
 
-- Notes, titles, photos
+- Notes, titles, photos, check-in descriptions, check-in photos
+- A pending (tentative) holding, in full — not just its free-typed fields. It doesn't exist on the
+  public page at all until it's confirmed (section 6.3).
 
 ### Why it is drawn here
 

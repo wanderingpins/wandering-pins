@@ -85,8 +85,10 @@ model User {
 }
 
 // The journey spine: one row per person-per-stint-with-a-pin.
-// Every field on this model is PUBLIC. See brief section 7 — do not add
-// free-typed or user-uploaded fields here.
+// Every field on this model is PUBLIC, with one exception: `pending`, which
+// gates whether the row is even part of the public journey at all — see
+// below. See brief section 7 — do not add free-typed or user-uploaded
+// fields here.
 //
 // "At most one open holding per pin" (released_at IS NULL) is enforced by a
 // partial unique index added in migration SQL — Prisma's schema DSL has no
@@ -94,6 +96,17 @@ model User {
 // and *_release_without_recipient (this constraint was briefly dropped to
 // support two-sided addressed trades, then restored once those were retired
 // in favor of one-sided, unaddressed release — brief section 6.4).
+//
+// `pending`: a still-held pin can now be claimed tentatively by someone
+// else before the current holder releases it (product decision, reverses
+// the previous "registration blocked outright" behavior). A pending
+// holding has released_at IS NULL like a real open holding, but is not the
+// real open holding — it never appears on the public page, and the "one
+// open holding per pin" index above only applies to non-pending rows (see
+// the migration for the parallel "at most one pending claim per pin"
+// index). When the real holder releases, the pending holding auto-promotes
+// (pending flips to false) with no other changes to what it already
+// recorded.
 model PinHolding {
   id          String      @id @default(cuid())
   pinId       String      @map("pin_id")
@@ -104,13 +117,15 @@ model PinHolding {
   lat         Float
   lng         Float
   releasedAt  DateTime?   @map("released_at")
+  pending     Boolean     @default(false)
 
   pin  Pin  @relation(fields: [pinId], references: [id])
   user User @relation(fields: [userId], references: [id])
 
-  note   HoldingNote?
-  photos HoldingPhoto[]
-  title  PinTitle?
+  note     HoldingNote?
+  photos   HoldingPhoto[]
+  title    PinTitle?
+  checkIns HoldingCheckIn[]
 
   @@index([pinId])
   @@index([userId])
@@ -159,6 +174,62 @@ model PinTitle {
   holding PinHolding @relation(fields: [holdingId], references: [id])
 
   @@map("pin_titles")
+}
+
+// A holder logging that the pin moved to a new place without releasing it —
+// "multi-location per-visit logging," a mini-timeline within one holding.
+// Public, same discipline as `PinHolding`: only structured place/date fields
+// live here, so it can render on the public map/timeline exactly like an
+// acquisition leg does. Only ever created against an open, non-pending
+// holding — see addCheckIn in checkin-actions.ts.
+model HoldingCheckIn {
+  id         String   @id @default(cuid())
+  holdingId  String   @map("holding_id")
+  loggedAt   DateTime @map("logged_at")
+  placeLabel String   @map("place_label")
+  lat        Float
+  lng        Float
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  holding PinHolding @relation(fields: [holdingId], references: [id])
+
+  note   HoldingCheckInNote?
+  photos HoldingCheckInPhoto[]
+
+  @@index([holdingId])
+  @@map("holding_check_ins")
+}
+
+// Private: readable only by the user who owns the parent holding. Optional
+// free-typed description of what happened at this location — "what happened
+// at that location if you want to." Never rendered on any public page.
+model HoldingCheckInNote {
+  id        String   @id @default(cuid())
+  checkInId String   @unique @map("check_in_id")
+  body      String
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  checkIn HoldingCheckIn @relation(fields: [checkInId], references: [id])
+
+  @@map("holding_check_in_notes")
+}
+
+// Private: readable only by the user who owns the parent holding. Never
+// rendered on any public page — no moderation filter exists yet (see
+// HANDOFF.md's "Photo content moderation" future idea), so these stay
+// private for now rather than repeating the front-photo precedent's
+// interim risk. Capped at 5 per check-in, enforced in the upload action
+// (no DB-level COUNT constraint).
+model HoldingCheckInPhoto {
+  id        String   @id @default(cuid())
+  checkInId String   @map("check_in_id")
+  url       String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  checkIn HoldingCheckIn @relation(fields: [checkInId], references: [id])
+
+  @@index([checkInId])
+  @@map("holding_check_in_photos")
 }
 
 // Rate-limiting /p/{slug} by IP (brief section 8) — the compensating

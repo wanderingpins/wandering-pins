@@ -14,17 +14,20 @@ export default async function MyPinsPage() {
     orderBy: { acquiredAt: "desc" },
   });
 
-  const currentlyHave = holdings.filter((h) => h.releasedAt === null);
-  const everHad = holdings;
+  const currentlyHave = holdings.filter((h) => h.releasedAt === null && !h.pending);
+  const pendingClaims = holdings.filter((h) => h.pending);
+  const everHad = holdings.filter((h) => !h.pending);
 
   // "Current location" for a released holding means wherever the pin is
   // now — which may belong to a different stint of this same user's, a
   // different person entirely, or no one. One query for every pin involved
   // covers both cases: a still-open holding maps to its own place label for
   // free, and a released one gets whatever open holding (if any) exists now.
+  // pending: false — a tentative claim elsewhere isn't a real "current
+  // location" and shouldn't be reported as one.
   const pinIds = [...new Set(holdings.map((h) => h.pinId))];
   const openHoldings = await prisma.pinHolding.findMany({
-    where: { pinId: { in: pinIds }, releasedAt: null },
+    where: { pinId: { in: pinIds }, releasedAt: null, pending: false },
     select: { pinId: true, placeLabel: true },
   });
   const currentLocationByPinId = new Map(openHoldings.map((h) => [h.pinId, h.placeLabel]));
@@ -68,6 +71,32 @@ export default async function MyPinsPage() {
         )}
       </section>
 
+      {pendingClaims.length > 0 && (
+        <section className="mt-10">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-500">Pending</h2>
+          <p className="mt-1 text-xs text-neutral-500">
+            Unreleased — the current holder hasn&apos;t let these go yet, so they won&apos;t show up on the public
+            journey until they do.
+          </p>
+          <ul className="mt-3 divide-y divide-neutral-200">
+            {pendingClaims.map((h) => (
+              <HoldingRow
+                key={h.id}
+                id={h.id}
+                slug={h.pin.slug}
+                placeLabel={h.placeLabel}
+                title={h.title?.title}
+                acquiredAt={h.acquiredAt}
+                acquiredVia={h.acquiredVia}
+                currentLocation={null}
+                pending
+                photoId={h.photos[0]?.id}
+              />
+            ))}
+          </ul>
+        </section>
+      )}
+
       <section className="mt-10">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-500">
           Ever had
@@ -106,6 +135,7 @@ function HoldingRow({
   acquiredVia,
   currentLocation,
   released,
+  pending,
   photoId,
 }: {
   id: string;
@@ -116,6 +146,7 @@ function HoldingRow({
   acquiredVia: AcquiredVia;
   currentLocation: string | null;
   released?: boolean;
+  pending?: boolean;
   photoId?: string;
 }) {
   return (
@@ -134,9 +165,12 @@ function HoldingRow({
         <Link href={`/p/${slug}`} className="font-medium hover:underline">
           {title || placeLabel}
         </Link>
+        <p className="font-mono text-xs text-neutral-400">{slug}</p>
         <p className="text-sm text-neutral-600">{formatAcquisition(acquiredVia, placeLabel, acquiredAt)}</p>
         <p className="text-sm text-neutral-600">
-          {released ? (
+          {pending ? (
+            "⏳ Unreleased — waiting for the current holder to let it go"
+          ) : released ? (
             currentLocation ? (
               <>Now in {currentLocation}</>
             ) : (

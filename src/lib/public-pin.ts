@@ -38,3 +38,32 @@ export function toPublicHolding(holding: HoldingLike): PublicHolding {
     isOpen: holding.releasedAt === null,
   };
 }
+
+// A check-in's public fields — same discipline as toPublicHolding above:
+// the holder comes from the *parent holding's* user, since a check-in
+// doesn't have its own. description/photos never pass through this at all.
+export type PublicCheckIn = {
+  loggedAt: Date;
+  placeLabel: string;
+  holderDisplayName: string;
+  lat: number;
+  lng: number;
+};
+
+type CheckInLike = {
+  loggedAt: Date;
+  placeLabel: string;
+  lat: number;
+  lng: number;
+  holder: { username: string | null; showNamePublicly: boolean };
+};
+
+export function toPublicCheckIn(checkIn: CheckInLike): PublicCheckIn {
+  return {
+    loggedAt: checkIn.loggedAt,
+    placeLabel: checkIn.placeLabel,
+    holderDisplayName: resolveHolderDisplayName(checkIn.holder),
+    lat: checkIn.lat,
+    lng: checkIn.lng,
+  };
+}

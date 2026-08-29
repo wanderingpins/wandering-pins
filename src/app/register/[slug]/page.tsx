@@ -10,7 +10,7 @@ type Props = { params: Promise<{ slug: string }> };
 
 export default async function RegisterPage({ params }: Props) {
   const { slug: rawParam } = await params;
-  await requireAppUser(`/register/${rawParam}`);
+  const user = await requireAppUser(`/register/${rawParam}`);
 
   const rawSlugResult = rawSlugSchema.safeParse(rawParam);
   const parsed = rawSlugResult.success ? parseSlug(rawSlugResult.data) : { valid: false as const };
@@ -53,11 +53,45 @@ export default async function RegisterPage({ params }: Props) {
     );
   }
 
+  const confirmedHolding = pin.holdings.find((h) => !h.pending);
+  const pendingHolding = pin.holdings.find((h) => h.pending);
+
+  if (confirmedHolding?.userId === user.id) {
+    return (
+      <main className="mx-auto max-w-md px-4 py-16">
+        <p className="text-sm text-neutral-500">Pin {pin.slug}</p>
+        <h1 className="mt-1 text-xl font-semibold">You already have this pin</h1>
+      </main>
+    );
+  }
+
+  if (pendingHolding) {
+    return (
+      <main className="mx-auto max-w-md px-4 py-16">
+        <p className="text-sm text-neutral-500">Pin {pin.slug}</p>
+        <h1 className="mt-1 text-xl font-semibold">Someone already has a pending claim</h1>
+        <p className="mt-2 text-neutral-700">
+          Someone else has already tentatively claimed this pin. Check back once the current holder releases it.
+        </p>
+      </main>
+    );
+  }
+
+  // Confirmed holding exists, belongs to someone else, and no one's
+  // pending yet — registering now creates a tentative claim (product
+  // decision): it's yours on My Pins right away, but it stays off this
+  // pin's public journey until the current holder actually releases it.
   return (
     <main className="mx-auto max-w-md px-4 py-16">
       <p className="text-sm text-neutral-500">Pin {pin.slug}</p>
-      <h1 className="mt-1 text-xl font-semibold">This pin is already claimed</h1>
-      <p className="mt-2 text-neutral-700">Someone else currently has this pin.</p>
+      <h1 className="mt-1 text-xl font-semibold">Someone else currently has this pin</h1>
+      <p className="mt-2 text-neutral-700">
+        You can still add it to your account now. It&apos;ll show up as &quot;unreleased&quot; on your My Pins until
+        the current holder releases it — only then does it join the public journey.
+      </p>
+      <div className="mt-6">
+        <RegisterForm slug={pin.slug} />
+      </div>
     </main>
   );
 }

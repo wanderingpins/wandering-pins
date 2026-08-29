@@ -24,7 +24,9 @@ export default async function TradePage({ params }: Props) {
 
   const pin = await prisma.pin.findUnique({
     where: { slug: parsed.slug },
-    include: { holdings: { where: { releasedAt: null, userId: user.id } } },
+    // pending: false — a tentative claim isn't the real current holder yet
+    // and can't release a pin it doesn't actually have.
+    include: { holdings: { where: { releasedAt: null, userId: user.id, pending: false } } },
   });
   const openHolding = pin?.holdings[0];
 
