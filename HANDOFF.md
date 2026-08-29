@@ -250,7 +250,7 @@ tab) made it reproduce correctly; not a real bug, just a tooling quirk worth rem
 crop ever seems to fail for no reason. `tsc`, `eslint`, and the full test suite (73 tests, unchanged)
 all clean.
 
-Pushed to `main` in commit `<pending>` — deployed via the usual Vercel auto-deploy once pushed.
+Pushed to `main` in commit `85cc725` — deployed via the usual Vercel auto-deploy.
 
 ## Future ideas (not started, not committed to)
 
