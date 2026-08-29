@@ -10,6 +10,7 @@ import { PinJourneyTimeline, type TimelineLine } from "@/components/PinJourneyTi
 import { PinJourneyMap } from "@/components/PinJourneyMap";
 import { InlineHoldingDetails } from "@/components/InlineHoldingDetails";
 import { InlineCheckInDetails } from "@/components/InlineCheckInDetails";
+import { PinPhotoWidget } from "@/components/PinPhotoWidget";
 
 // Zod boundary for the raw route param — brief section 10 ("Zod at every
 // input boundary, including the slug parser"). This just guards the shape;
@@ -100,7 +101,8 @@ export default async function PinPage({ params }: Props) {
   // public ONLY for the current open holding, and only the front photo;
   // back/other photos and everything in HoldingNote stay private always.
   const publicTitle = openHolding?.title?.title.trim() || "Untitled Pin";
-  const hasPublicPhoto = !!openHolding?.photos.some((p) => p.kind === "FRONT");
+  const frontPhotoId = openHolding?.photos.find((p) => p.kind === "FRONT")?.id;
+  const hasPublicPhoto = !!frontPhotoId;
 
   // Timeline rows carry an id (holding or check-in) alongside the prose line
   // so an inline "add details" widget can be attached to the right one,
@@ -140,8 +142,11 @@ export default async function PinPage({ params }: Props) {
           <InlineHoldingDetails
             holdingId={h.id}
             initialNotes={h.note?.body ?? ""}
-            photos={h.photos.map((p) => ({ id: p.id, kind: p.kind }))}
-            frontPhotoIsPublic={h.releasedAt === null}
+            // The FRONT-kind photo (if any) is managed entirely by
+            // PinPhotoWidget at the top of the page now — never shown or
+            // manageable here, so it can't look like it belongs to this
+            // one acquisition event.
+            photos={h.photos.filter((p) => p.kind !== "FRONT").map((p) => ({ id: p.id }))}
           />
         ) : undefined,
       };
@@ -166,15 +171,24 @@ export default async function PinPage({ params }: Props) {
       <p className="text-lg font-medium text-neutral-800">{publicTitle}</p>
       <h1 className="mt-1 text-2xl font-semibold">Its journey so far</h1>
 
-      {hasPublicPhoto && (
-        <div className="mt-4">
-          {/* eslint-disable-next-line @next/next/no-img-element -- served through a dedicated public route, not a static asset next/image can optimize */}
-          <img
-            src={`/api/pins/${parsed.slug}/photo`}
-            alt={publicTitle}
-            className="aspect-square w-full max-w-xs rounded-lg border border-neutral-200 object-cover"
-          />
-        </div>
+      {isCurrentHolder ? (
+        <PinPhotoWidget
+          holdingId={openHolding!.id}
+          slug={parsed.slug}
+          frontPhotoId={frontPhotoId}
+          publicTitle={publicTitle}
+        />
+      ) : (
+        hasPublicPhoto && (
+          <div className="mt-4">
+            {/* eslint-disable-next-line @next/next/no-img-element -- served through a dedicated public route, not a static asset next/image can optimize */}
+            <img
+              src={`/api/pins/${parsed.slug}/photo`}
+              alt={publicTitle}
+              className="aspect-square w-full max-w-xs rounded-lg border border-neutral-200 object-cover"
+            />
+          </div>
+        )
       )}
 
       <div className="mt-6">

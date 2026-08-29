@@ -1,6 +1,6 @@
 # Wandering Pins — handoff notes
 
-Status as of 2026-08-29: v1 built per WANDERING_PINS_BRIEF.md, deployed, and live at wanderingpins.com. Since the initial build: added user profiles/auth, replaced addressed trades with unaddressed release, added camera-based QR scanning to pin lookup, added camera capture/crop/size-limits to holding photos, settled the physical sticker sheet's design, made the current holder's title and front photo public on the pin journey page (explicit user decision, loosening a brief-section-7 guarantee) while keeping notes permanently private, closed a real `rls_disabled_in_public` gap on every table, added timeouts around every Supabase Auth network call (middleware session-refresh, sign-in, and confirmation-link exchange) so a degraded Auth API can no longer stall the whole site or hang a sign-in attempt, made `/my-pins` rows show a photo/acquisition/current-location summary instead of just a name and date, let a holder log that a pin moved to a new location without releasing it (private photos/description, public place/date), let someone tentatively claim a still-held pin (invisible on the public page until the real holder releases, then auto-promotes), stopped rendering the pin's raw code as text on its public journey page, and added inline "add details" (notes + photos) directly on the pin journey page next to each timeline line you own, replacing the old go-to-a-different-page edit flow. See "Since v1" and "Since v1 continued" below for details, "Known open items" for what's still open, and "Future ideas" for what's discussed but not started. A new Claude Code session opened in this folder should read this file first, then the brief (which is kept in sync with current behavior, not historical).
+Status as of 2026-08-29: v1 built per WANDERING_PINS_BRIEF.md, deployed, and live at wanderingpins.com. Since the initial build: added user profiles/auth, replaced addressed trades with unaddressed release, added camera-based QR scanning to pin lookup, added camera capture/crop/size-limits to holding photos, settled the physical sticker sheet's design, made the current holder's title and front photo public on the pin journey page (explicit user decision, loosening a brief-section-7 guarantee) while keeping notes permanently private, closed a real `rls_disabled_in_public` gap on every table, added timeouts around every Supabase Auth network call (middleware session-refresh, sign-in, and confirmation-link exchange) so a degraded Auth API can no longer stall the whole site or hang a sign-in attempt, made `/my-pins` rows show a photo/acquisition/current-location summary instead of just a name and date, let a holder log that a pin moved to a new location without releasing it (private photos/description, public place/date), let someone tentatively claim a still-held pin (invisible on the public page until the real holder releases, then auto-promotes), stopped rendering the pin's raw code as text on its public journey page, added inline "add details" (notes + photos) directly on the pin journey page next to each timeline line you own, replacing the old go-to-a-different-page edit flow, and gave the pin's own public photo a dedicated top-of-page control instead of nesting it under the first acquisition line. See "Since v1" and "Since v1 continued" below for details, "Known open items" for what's still open, and "Future ideas" for what's discussed but not started. A new Claude Code session opened in this folder should read this file first, then the brief (which is kept in sync with current behavior, not historical).
 
 ## Since v1 (2026-08-08)
 
@@ -214,6 +214,43 @@ notes textarea + photo upload in place; Save collapses it back down.
   was UI wiring over already-tested actions, not new pure logic) all clean.
 
 Pushed to `main` in commit `7c5f426` — deployed via the usual Vercel auto-deploy.
+
+## Since v1 continued (2026-08-29), part 7
+
+**Three follow-on refinements to part 6's inline editing, from live use:**
+
+1. **The pin's own public photo gets its own top-of-page control.** It used to only appear inside
+   the "Bought in..." line's inline widget (via the front/back/other side picker on the full
+   holdings page), which read as if the photo belonged to that one acquisition event rather than to
+   the pin itself. New `src/components/PinPhotoWidget.tsx`, rendered at the very top of `/p/[slug]`
+   (before the map), visible with edit controls only to the current confirmed holder: shows "Pin
+   photo not available" + an "Add pin photo" button when there's none, or the photo + "Replace
+   photo"/"Remove" when there is. Reuses the existing `uploadPhoto`/`deletePhoto` actions, always
+   with `kind: "FRONT"` — a non-owner (or logged-out visitor) still just sees the plain public image
+   if one's set, unchanged from before.
+2. **`InlineHoldingDetails` no longer touches the front photo at all** — now structurally identical
+   to `InlineCheckInDetails`: notes + photos only, every photo it manages always private (`kind:
+   "OTHER"`), no side picker, no "🌐 Public"/"🔒 Private" badge (nothing shown there can be public
+   anymore). The caller (`/p/[slug]/page.tsx`) filters out any `FRONT`-kind photo before passing
+   `photos` in, so an old one set via the full holdings page can't reappear here.
+3. **Saved notes/photos now show immediately, without clicking "Edit details"/"Add details".**
+   Previously the button toggled *visibility* of already-saved content, not just the ability to
+   edit it — so the owner themselves couldn't see what they'd written without re-opening the editor
+   every time. Both inline components now render a read-only preview (note text + photo thumbnails,
+   still behind the existing "🔒 Only you can see this" badge, still owner-only) whenever collapsed
+   and there's something to show; the button only toggles whether the *editable* form is open.
+
+Verified live end-to-end (register a pin, add the top pin photo, confirm it shows publicly and
+persists through sign-out; add notes+photo on the "Bought" line, confirm no side picker or public
+badge, confirm the note stays visible after collapsing without re-opening) with a throwaway pin and
+account, cleaned up afterward. Hit one red herring while debugging a crop failure during manual
+testing: `window.innerWidth`/`innerHeight` briefly read `0` because the browser tab was backgrounded
+during a scripted interaction, not because of anything in the app — a screenshot (which fronts the
+tab) made it reproduce correctly; not a real bug, just a tooling quirk worth remembering if a photo
+crop ever seems to fail for no reason. `tsc`, `eslint`, and the full test suite (73 tests, unchanged)
+all clean.
+
+Pushed to `main` in commit `<pending>` — deployed via the usual Vercel auto-deploy once pushed.
 
 ## Future ideas (not started, not committed to)
 

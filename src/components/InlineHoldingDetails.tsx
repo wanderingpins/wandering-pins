@@ -10,25 +10,24 @@ import { cropPhotoToBlob } from "@/lib/crop-photo";
 // see photo-limits.ts for that.
 const MAX_SELECTION_BYTES = 25 * 1024 * 1024;
 
-type Photo = { id: string; kind: "FRONT" | "BACK" | "OTHER" };
+type Photo = { id: string };
 
 // Inline "add details" for one journey line, shown only to that line's
 // owner (gated by the caller — /app/p/[slug]/page.tsx). Deliberately
 // narrower than the full /holdings/[holdingId] page: just a notes textarea
-// and photos, no title/release-date/front-back-side picker. New photos
-// uploaded here always save as kind "OTHER" (always private) — setting the
-// public front photo still happens on the full holdings page, where the
-// "🌐 Public" consequence is spelled out next to the side picker.
+// and photos, no title/release-date picker — and no front/back/other side
+// either, since the pin's one public photo now has its own dedicated
+// control at the top of the page (PinPhotoWidget). Every photo here is
+// always private; the caller is expected to have already filtered out any
+// FRONT-kind photo before passing `photos` in.
 export function InlineHoldingDetails({
   holdingId,
   initialNotes,
   photos,
-  frontPhotoIsPublic,
 }: {
   holdingId: string;
   initialNotes: string;
   photos: Photo[];
-  frontPhotoIsPublic: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
   const hasDetails = !!initialNotes || photos.length > 0;
@@ -56,14 +55,6 @@ export function InlineHoldingDetails({
   if (noteState !== prevNoteState) {
     setPrevNoteState(noteState);
     if (noteState.status === "ok") setExpanded(false);
-  }
-
-  if (!expanded) {
-    return (
-      <button type="button" onClick={() => setExpanded(true)} className="text-sm text-blue-600 hover:underline">
-        {hasDetails ? "Edit details" : "Add details"}
-      </button>
-    );
   }
 
   function openPicker(capture?: "environment") {
@@ -113,100 +104,125 @@ export function InlineHoldingDetails({
   }
 
   return (
-    <div className="flex flex-col gap-3 rounded-lg border border-neutral-200 bg-neutral-50 p-3">
-      <p className="inline-flex w-fit items-center gap-1.5 rounded-full bg-neutral-100 px-2.5 py-0.5 text-xs font-medium text-neutral-600">
-        🔒 Only you can see this
-      </p>
-
-      <form action={noteFormAction} className="flex flex-col gap-2">
-        <textarea
-          name="notes"
-          rows={3}
-          defaultValue={initialNotes}
-          placeholder="What happened here? (optional)"
-          className="rounded-md border border-neutral-300 bg-white px-2 py-1.5 text-sm"
-        />
-        <div className="flex items-center gap-2">
-          <button
-            type="submit"
-            disabled={notePending}
-            className="rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-60"
-          >
-            {notePending ? "Saving…" : "Save"}
-          </button>
-          <button
-            type="button"
-            onClick={() => setExpanded(false)}
-            disabled={notePending}
-            className="rounded-md px-3 py-1.5 text-xs font-medium text-neutral-600 hover:bg-neutral-100 disabled:opacity-60"
-          >
-            Cancel
-          </button>
+    <div className="flex flex-col gap-2">
+      {!expanded && hasDetails && (
+        <div className="flex flex-col gap-2 rounded-lg border border-neutral-200 bg-neutral-50 p-3">
+          <p className="inline-flex w-fit items-center gap-1.5 rounded-full bg-neutral-100 px-2.5 py-0.5 text-xs font-medium text-neutral-600">
+            🔒 Only you can see this
+          </p>
+          {initialNotes && <p className="whitespace-pre-wrap text-sm text-neutral-800">{initialNotes}</p>}
+          {photos.length > 0 && (
+            <ul className="grid grid-cols-4 gap-2">
+              {photos.map((photo) => (
+                <li key={photo.id}>
+                  {/* eslint-disable-next-line @next/next/no-img-element -- private, per-user image behind an auth-gated route */}
+                  <img
+                    src={`/api/holdings/${holdingId}/photos/${photo.id}`}
+                    alt=""
+                    className="aspect-square w-full rounded-md object-cover"
+                  />
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
-        {noteState.status === "error" && <p className="text-xs text-red-600">{noteState.message}</p>}
-      </form>
-
-      {photos.length > 0 && (
-        <ul className="grid grid-cols-4 gap-2">
-          {photos.map((photo) => {
-            const isPublic = photo.kind === "FRONT" && frontPhotoIsPublic;
-            return (
-              <li key={photo.id} className="relative">
-                {/* eslint-disable-next-line @next/next/no-img-element -- private, per-user image behind an auth-gated route */}
-                <img
-                  src={`/api/holdings/${holdingId}/photos/${photo.id}`}
-                  alt=""
-                  className="aspect-square w-full rounded-md object-cover"
-                />
-                <span className="absolute left-1 top-1 rounded-full bg-black/60 px-1.5 py-0.5 text-[10px] text-white">
-                  {isPublic ? "🌐 Public" : "🔒 Private"}
-                </span>
-                <form action={deletePhoto.bind(null, holdingId, photo.id)} className="absolute right-1 top-1">
-                  <button
-                    type="submit"
-                    className="rounded-full bg-black/60 px-2 py-0.5 text-xs text-white hover:bg-black/80"
-                  >
-                    &times;
-                  </button>
-                </form>
-              </li>
-            );
-          })}
-        </ul>
       )}
 
-      <div className="flex gap-2">
-        <button
-          type="button"
-          onClick={() => openPicker("environment")}
-          disabled={uploadPending}
-          className="rounded-md border border-neutral-300 bg-white px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50 disabled:opacity-60"
-        >
-          Take a photo
+      {!expanded ? (
+        <button type="button" onClick={() => setExpanded(true)} className="self-start text-sm text-blue-600 hover:underline">
+          {hasDetails ? "Edit details" : "Add details"}
         </button>
-        <button
-          type="button"
-          onClick={() => openPicker()}
-          disabled={uploadPending}
-          className="rounded-md border border-neutral-300 bg-white px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50 disabled:opacity-60"
-        >
-          Choose from library
-        </button>
-      </div>
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/jpeg,image/png,image/webp"
-        onChange={handleFileChange}
-        className="hidden"
-      />
+      ) : (
+        <div className="flex flex-col gap-3 rounded-lg border border-neutral-200 bg-neutral-50 p-3">
+          <p className="inline-flex w-fit items-center gap-1.5 rounded-full bg-neutral-100 px-2.5 py-0.5 text-xs font-medium text-neutral-600">
+            🔒 Only you can see this
+          </p>
 
-      {uploadPending && <p className="text-xs text-neutral-500">Uploading…</p>}
-      {pickError && <p className="text-xs text-red-600">{pickError}</p>}
-      {uploadState.status === "error" && <p className="text-xs text-red-600">{uploadState.message}</p>}
+          <form action={noteFormAction} className="flex flex-col gap-2">
+            <textarea
+              name="notes"
+              rows={3}
+              defaultValue={initialNotes}
+              placeholder="What happened here? (optional)"
+              className="rounded-md border border-neutral-300 bg-white px-2 py-1.5 text-sm"
+            />
+            <div className="flex items-center gap-2">
+              <button
+                type="submit"
+                disabled={notePending}
+                className="rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-60"
+              >
+                {notePending ? "Saving…" : "Save"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setExpanded(false)}
+                disabled={notePending}
+                className="rounded-md px-3 py-1.5 text-xs font-medium text-neutral-600 hover:bg-neutral-100 disabled:opacity-60"
+              >
+                Cancel
+              </button>
+            </div>
+            {noteState.status === "error" && <p className="text-xs text-red-600">{noteState.message}</p>}
+          </form>
 
-      {imageSrc && (
-        <PhotoCropModal imageSrc={imageSrc} onCancel={closeCropper} onConfirm={handleCropConfirm} pending={uploadPending} />
+          {photos.length > 0 && (
+            <ul className="grid grid-cols-4 gap-2">
+              {photos.map((photo) => (
+                <li key={photo.id} className="relative">
+                  {/* eslint-disable-next-line @next/next/no-img-element -- private, per-user image behind an auth-gated route */}
+                  <img
+                    src={`/api/holdings/${holdingId}/photos/${photo.id}`}
+                    alt=""
+                    className="aspect-square w-full rounded-md object-cover"
+                  />
+                  <form action={deletePhoto.bind(null, holdingId, photo.id)} className="absolute right-1 top-1">
+                    <button
+                      type="submit"
+                      className="rounded-full bg-black/60 px-2 py-0.5 text-xs text-white hover:bg-black/80"
+                    >
+                      &times;
+                    </button>
+                  </form>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => openPicker("environment")}
+              disabled={uploadPending}
+              className="rounded-md border border-neutral-300 bg-white px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50 disabled:opacity-60"
+            >
+              Take a photo
+            </button>
+            <button
+              type="button"
+              onClick={() => openPicker()}
+              disabled={uploadPending}
+              className="rounded-md border border-neutral-300 bg-white px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50 disabled:opacity-60"
+            >
+              Choose from library
+            </button>
+          </div>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            onChange={handleFileChange}
+            className="hidden"
+          />
+
+          {uploadPending && <p className="text-xs text-neutral-500">Uploading…</p>}
+          {pickError && <p className="text-xs text-red-600">{pickError}</p>}
+          {uploadState.status === "error" && <p className="text-xs text-red-600">{uploadState.message}</p>}
+
+          {imageSrc && (
+            <PhotoCropModal imageSrc={imageSrc} onCancel={closeCropper} onConfirm={handleCropConfirm} pending={uploadPending} />
+          )}
+        </div>
       )}
     </div>
   );
