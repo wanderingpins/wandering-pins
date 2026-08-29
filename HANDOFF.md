@@ -131,6 +131,8 @@ suite (73 tests) all clean.
 of change as the trade/user-profile rewrites earlier, not a narrow implementation deviation, so it
 went in the brief itself rather than only here.
 
+Pushed to `main` in commit `79b419c` — deployed via the usual Vercel auto-deploy.
+
 ## Future ideas (not started, not committed to)
 
 - **Photo content moderation** (porn/violence filtering) before a photo is accepted — now relevant
