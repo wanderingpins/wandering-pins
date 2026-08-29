@@ -20,3 +20,17 @@ export async function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T
 // fails silently (skip one background refresh) rather than surfacing an
 // error to the person waiting on it.
 export const AUTH_CALL_TIMEOUT_MS = 8000;
+
+// For a read-only/decorative auth check where timing out and failing as if
+// signed out costs nothing — nothing is granted or revoked by the decision,
+// it only affects what this one request renders (e.g. the header showing
+// "Sign in" instead of the account menu, or the public pin page not
+// tailoring its CTA to a signed-in visitor). Same duration as the
+// middleware's own getClaims timeout, for the same reason: a silent
+// fail-open can afford to be stricter than a call whose timeout is
+// user-visible. Deliberately NOT used for requireAppUser's own check
+// (src/lib/auth.ts) — timing that one out would bounce a legitimately
+// signed-in user off a page they're allowed to see, a real tradeoff a past
+// session reasoned through and chose not to make; revisit only with an
+// explicit product decision, not as a side effect of this fix.
+export const BEST_EFFORT_AUTH_TIMEOUT_MS = 3000;

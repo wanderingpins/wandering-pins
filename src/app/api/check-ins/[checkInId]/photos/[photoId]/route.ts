@@ -1,6 +1,7 @@
 import { getAuthClaims } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { downloadHoldingPhoto } from "@/lib/storage";
+import { BEST_EFFORT_AUTH_TIMEOUT_MS } from "@/lib/with-timeout";
 
 type Params = { params: Promise<{ checkInId: string; photoId: string }> };
 
@@ -10,7 +11,9 @@ type Params = { params: Promise<{ checkInId: string; photoId: string }> };
 export async function GET(_request: Request, { params }: Params) {
   const { checkInId, photoId } = await params;
 
-  const claims = await getAuthClaims();
+  // Best-effort: a timeout here just means this one image fails to load
+  // (same 404 as any other auth failure) instead of hanging.
+  const claims = await getAuthClaims(BEST_EFFORT_AUTH_TIMEOUT_MS);
   if (!claims?.sub) {
     return new Response("Not found", { status: 404 });
   }

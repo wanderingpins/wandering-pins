@@ -2,13 +2,26 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { prisma } from "@/lib/prisma";
 import type { User } from "@/generated/prisma/client";
+import { withTimeout } from "@/lib/with-timeout";
 
 // getClaims() validates the JWT locally against the project's published
 // keys — safe to trust for authorization, unlike getSession(). Returns null
 // if there's no signed-in user.
-export async function getAuthClaims() {
+//
+// `timeoutMs` is opt-in and omitted by default, so requireAppUser's own use
+// below (real access-control gating a protected page) keeps its original,
+// deliberately-untimed behavior. Pass BEST_EFFORT_AUTH_TIMEOUT_MS
+// (src/lib/with-timeout.ts) from a read-only call site instead — see that
+// constant's comment for which call sites qualify and why this one doesn't.
+export async function getAuthClaims(timeoutMs?: number) {
   const supabase = await createClient();
-  const { data, error } = await supabase.auth.getClaims();
+  const call = supabase.auth.getClaims();
+  const result = timeoutMs === undefined ? await call : await withTimeout(call, timeoutMs);
+  if (result === "timeout") {
+    console.error(`getAuthClaims timed out after ${timeoutMs}ms`);
+    return null;
+  }
+  const { data, error } = result;
   if (error) {
     console.error("getClaims failed", { message: error.message, code: (error as { code?: string }).code });
   }

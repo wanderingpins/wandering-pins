@@ -133,6 +133,48 @@ went in the brief itself rather than only here.
 
 Pushed to `main` in commit `79b419c` — deployed via the usual Vercel auto-deploy.
 
+## Since v1 continued (2026-08-29), part 5
+
+**Settings page defaults to read-only, edit behind a button.** `ProfileForm`/`EmailForm` used to
+render as live editable inputs pre-filled with current values the moment the page opened — too easy
+to change something by accident. Both now show a plain read-only view plus an "Edit"/"Change email"
+button; the form appears on click, with a "Cancel" back to the view, and a successful save collapses
+back to the view automatically. Adjusts state during render rather than in a `useEffect` (React's
+own recommended pattern for "respond to a value changing," and avoids a `react-hooks/set-state-in-effect`
+lint error the naive effect-based version hit). Pushed to `main` in commit `03597c2`.
+
+**"Log a new location" button on the pin journey page.** The only way to log a check-in was to
+already know `/holdings/[holdingId]` existed and navigate there by hand. Added a button next to "Log
+a trade" on `/p/[slug]`, visible only to the current confirmed holder, linking to
+`/holdings/{holdingId}#locations` — jumps straight to the Locations section instead of just the top
+of the page (`scroll-mt-6` on that section so the anchor doesn't land flush against the viewport
+edge). Pushed to `main` in commit `6e13b95`.
+
+**Closed a real gap in the auth-timeout work: `getAuthClaims()` itself had no timeout.** Reported as
+"the website is going slow again" while a real, ongoing Supabase incident was live (status.supabase.com
+showed "Increased response times for requests," unresolved, plus a degraded API Gateway — same class
+of incident as the one that prompted the original middleware timeout). The 2026-08-29 sign-in-timeout
+work (part 3 above) covered `signInWithPassword`/`signInWithOtp`/`exchangeCodeForSession`, but
+`getAuthClaims()` in `src/lib/auth.ts` — the function underneath all of those *and* underneath
+`SiteHeader` — was never touched, and `SiteHeader` sits in the root layout, rendering on **every
+page**, not just protected ones. Any visitor with a session cookie needing a token refresh stalled
+the entire site, not just auth-gated flows.
+
+- `getAuthClaims(timeoutMs?)` now takes an optional timeout (`src/lib/with-timeout.ts`'s new
+  `BEST_EFFORT_AUTH_TIMEOUT_MS`, 3s). Applied to `SiteHeader`, `/p/[slug]`'s own claims check, and
+  both private-photo API routes — all read-only/decorative uses where failing open to "signed out"
+  costs nothing (worst case: the header briefly shows "Sign in" for someone who actually is, or one
+  image 404s and can be retried).
+- **Deliberately NOT applied** to `getOrCreateAppUser`/`requireAppUser` — the real access-control
+  gate on every protected page. Timing that one out would bounce a legitimately signed-in user to
+  `/sign-in` mid-blip, the same tradeoff a past session already reasoned through and chose not to
+  make when it added the sign-in-specific timeouts. Still genuinely untimed; see Known open items.
+- Verified: `tsc`, `eslint`, and the full test suite clean; smoke-tested sign-in, the header, and the
+  public pin page locally afterward with no regressions. Not verified against the live incident
+  itself (no way to force it on demand) — logic mirrors the already-incident-tested middleware fix.
+
+Pushed to `main` in commit `<pending>` — deployed via the usual Vercel auto-deploy once pushed.
+
 ## Future ideas (not started, not committed to)
 
 - **Photo content moderation** (porn/violence filtering) before a photo is accepted — now relevant
@@ -178,6 +220,7 @@ The brief got some things right in principle but wrong in a couple of real-world
 - The low-stakes `wanderingpins.com` → `www.wanderingpins.com` 308 (see Domains above) could be tidied later if desired.
 - The Supabase email-change confirmation doesn't currently send (see Deviations #6) — settings-page email changes won't actually reach anyone until that's fixed in the dashboard.
 - A pre-existing open-redirect gap in `sendMagicLink` (`src/app/sign-in/actions.ts`) — its `next` param isn't validated as same-origin before being used to build the redirect URL, unlike the `safeNext()` helper (`src/lib/auth.ts`) added alongside it for the newer onboarding/password-sign-in flows. Low severity, not yet fixed; flagged as a spawned task during this session (may or may not still be showing as a chip depending on how long ago that was).
+- **`requireAppUser`'s own claims check is still untimed** (see part 5 above) — a deliberate tradeoff, not an oversight, but worth revisiting explicitly if a protected page hanging during a Supabase blip becomes the actual complaint next time, the same way the sign-in-specific timeouts got revisited once they became the complaint.
 
 ## Test coverage
 

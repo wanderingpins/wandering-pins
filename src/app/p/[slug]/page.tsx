@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { parseSlug } from "@/lib/slug";
 import { getAuthClaims } from "@/lib/auth";
+import { BEST_EFFORT_AUTH_TIMEOUT_MS } from "@/lib/with-timeout";
 import { buildJourneyTimeline, formatMonthYear } from "@/lib/timeline";
 import { toPublicHolding, toPublicCheckIn } from "@/lib/public-pin";
 import { PinJourneyTimeline } from "@/components/PinJourneyTimeline";
@@ -83,7 +84,12 @@ export default async function PinPage({ params }: Props) {
   // claiming). A pending claim on the same pin can coexist and is handled
   // separately below.
   const openHolding = confirmedHoldings.find((h) => h.releasedAt === null);
-  const claims = await getAuthClaims();
+  // Best-effort — this is the public funnel page, so a signed-in visitor's
+  // stalled auth check must never stall the page itself. Failing open to
+  // "anonymous" just means the CTA below defaults to "Claim this pin"
+  // instead of "Log a trade"/pending-claim messaging, and "Your notes"
+  // doesn't render, for this one request.
+  const claims = await getAuthClaims(BEST_EFFORT_AUTH_TIMEOUT_MS);
   const isCurrentHolder = !!claims && claims.sub === openHolding?.userId;
   const ownPendingHolding = claims ? pin.holdings.find((h) => h.pending && h.userId === claims.sub) : undefined;
 
