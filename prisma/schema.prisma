@@ -52,8 +52,9 @@ model Pin {
   createdAt    DateTime  @default(now()) @map("created_at")
   registeredAt DateTime? @map("registered_at")
 
-  batch    StickerBatch @relation(fields: [batchId], references: [id])
-  holdings PinHolding[]
+  batch        StickerBatch  @relation(fields: [batchId], references: [id])
+  holdings     PinHolding[]
+  seriesClaims SeriesClaim[]
 
   @@map("pins")
 }
@@ -79,7 +80,10 @@ model User {
   createdAt        DateTime @default(now()) @map("created_at")
   showNamePublicly Boolean  @default(true) @map("show_name_publicly")
 
-  holdings PinHolding[]
+  holdings      PinHolding[]
+  seriesCreated Series[]
+  seriesItems   SeriesItem[]
+  seriesClaims  SeriesClaim[]
 
   @@map("users")
 }
@@ -266,3 +270,92 @@ model RateLimitHit {
   @@map("rate_limit_hits")
 }
 
+// --- Series tracking (PinPics/PinAndPop-style set checklists) ---
+//
+// Deliberately independent of the pins/pin_holdings journey system above:
+// most pins someone wants to track in a set (e.g. a blind-box series) will
+// never carry a Wandering Pins sticker at all, so this can't require one.
+// A SeriesClaim MAY optionally point at one of the claimant's own
+// registered pins (`linkedPinId`) purely as a convenience link-through — no
+// code path requires it, and nothing here validates the physical pin
+// actually matches the design.
+//
+// This is explicitly NOT the main thrust of the product (user's own
+// framing) — the whole point is that it works with *no* admin curation,
+// which shapes every rule below:
+//
+// - Crowd-created: any onboarded user can create a series or add an item to
+//   one, the same self-service spirit as everything else in this app.
+// - Additive-only editing to limit vandalism without a moderation queue:
+//   only the row's own creator may rename/delete it, and only while nothing
+//   depends on it yet (a Series with items, or a SeriesItem with claims,
+//   can't be deleted — see the actions in src/app/series/actions.ts).
+//   Nobody can touch a row someone else created at all.
+// - Text-only, no photos, on the shared catalog (Series.name, SeriesItem.
+//   label) — a crowd-editable *public* image board is a materially bigger
+//   moderation surface than the narrow per-holder photo exception on
+//   pin_titles (section 7), since creating a series/item costs nothing (no
+//   physical object, no sticker, unlike everything that gates title/
+//   description/front photo). A claimant's own photo of their own copy, if
+//   ever added, would need to stay private to them, never attached to the
+//   shared item.
+// - Claims are public (username, subject to show_name_publicly, same as
+//   everywhere else) by explicit user decision — that's what makes this
+//   useful for finding a trade partner, the same "socially reported, not
+//   cryptographically proven" spirit as brief section 1: nothing here
+//   verifies a claim is true.
+// - `nameKey`/`labelKey` are `name`/`label` normalised (see
+//   normalizeSeriesKey in src/lib/series.ts) so near-duplicate typing
+//   merges into the same row instead of fragmenting the catalog — creating
+//   a series/item is really "find-or-create by normalised key," enforced by
+//   the unique constraints below, not just a UI convention.
+model Series {
+  id        String   @id @default(cuid())
+  name      String
+  nameKey   String   @unique @map("name_key")
+  createdBy String   @map("created_by")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  creator User         @relation(fields: [createdBy], references: [id])
+  items   SeriesItem[]
+
+  @@map("series")
+}
+
+// One slot/design within a series (e.g. "4 of 12: Donut"). `position` is
+// optional — not every set is numbered.
+model SeriesItem {
+  id        String   @id @default(cuid())
+  seriesId  String   @map("series_id")
+  label     String
+  labelKey  String   @map("label_key")
+  position  Int?
+  createdBy String   @map("created_by")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  series  Series        @relation(fields: [seriesId], references: [id])
+  creator User          @relation(fields: [createdBy], references: [id])
+  claims  SeriesClaim[]
+
+  @@unique([seriesId, labelKey])
+  @@map("series_items")
+}
+
+// "I have this one" — a lightweight, public checkmark, not a holding: no
+// acquisition date/place/photos, just a claim. At most one claim per user
+// per item (unclaiming deletes the row rather than tracking history).
+model SeriesClaim {
+  id           String   @id @default(cuid())
+  seriesItemId String   @map("series_item_id")
+  userId       String   @map("user_id")
+  linkedPinId  String?  @map("linked_pin_id")
+  claimedAt    DateTime @default(now()) @map("claimed_at")
+
+  seriesItem SeriesItem @relation(fields: [seriesItemId], references: [id])
+  user       User       @relation(fields: [userId], references: [id])
+  linkedPin  Pin?       @relation(fields: [linkedPinId], references: [id])
+
+  @@unique([seriesItemId, userId])
+  @@index([userId])
+  @@map("series_claims")
+}

@@ -110,6 +110,21 @@ export default async function PinPage({ params }: Props) {
   const frontPhotoId = openHolding?.photos.find((p) => p.kind === "FRONT")?.id;
   const hasPublicPhoto = !!frontPhotoId;
 
+  // "Part of a series" — a lightweight, public link-through to the
+  // decoupled series/checklist catalog (src/app/series), not a field on
+  // this pin itself: most pins in a set never get a Wandering Pins sticker
+  // at all, so the catalog can't require one. Only the current holder's own
+  // linked claim shows here (same "gone once released" precedent as
+  // title/description/photo above), even though the underlying claim
+  // itself persists on their own /series page regardless of who holds this
+  // pin next.
+  const seriesLink = openHolding
+    ? await prisma.seriesClaim.findFirst({
+        where: { linkedPinId: pin.id, userId: openHolding.userId },
+        include: { seriesItem: { include: { series: true } } },
+      })
+    : null;
+
   // Timeline rows carry an id (holding or check-in) alongside the prose line
   // so an inline "add details" widget can be attached to the right one,
   // gated to its owner — built by hand rather than through
@@ -211,6 +226,23 @@ export default async function PinPage({ params }: Props) {
         <PinDescriptionWidget holdingId={openHolding!.id} initialDescription={publicDescription} />
       ) : (
         publicDescription && <p className="mt-4 whitespace-pre-wrap text-sm text-neutral-800">{publicDescription}</p>
+      )}
+
+      {seriesLink ? (
+        <p className="mt-3 text-sm text-neutral-600">
+          Part of a series:{" "}
+          <Link href={`/series/${seriesLink.seriesItem.series.id}`} className="font-medium text-blue-600 hover:underline">
+            {seriesLink.seriesItem.series.name} — {seriesLink.seriesItem.label}
+          </Link>
+        </p>
+      ) : (
+        isCurrentHolder && (
+          <p className="mt-3 text-sm text-neutral-500">
+            <Link href={`/series?linkPin=${pin.id}`} className="text-blue-600 hover:underline">
+              Add this pin to a series
+            </Link>
+          </p>
+        )
       )}
 
       <div className="mt-6">

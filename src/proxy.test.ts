@@ -54,6 +54,30 @@ describe("proxy", () => {
     expect(blocked.status).toBe(429);
   });
 
+  it("rate-limits repeated /pins requests from the same IP", async () => {
+    const ip = randomUUID();
+    testIps.push(ip);
+
+    for (let i = 0; i < 30; i++) {
+      const res = await proxy(requestFor("wanderingpins.com", "/pins", ip));
+      expect(res.status).toBe(200);
+    }
+    const blocked = await proxy(requestFor("wanderingpins.com", "/pins", ip));
+    expect(blocked.status).toBe(429);
+  });
+
+  it("rate-limits repeated /series requests from the same IP", async () => {
+    const ip = randomUUID();
+    testIps.push(ip);
+
+    for (let i = 0; i < 30; i++) {
+      const res = await proxy(requestFor("wanderingpins.com", "/series", ip));
+      expect(res.status).toBe(200);
+    }
+    const blocked = await proxy(requestFor("wanderingpins.com", "/series", ip));
+    expect(blocked.status).toBe(429);
+  });
+
   it("does not rate-limit other app-host paths", async () => {
     const ip = randomUUID();
     testIps.push(ip);

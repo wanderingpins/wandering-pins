@@ -5,6 +5,15 @@ import { exchangeStrayAuthCode, updateSession } from "@/lib/supabase/proxy";
 import { getClientIp, isRateLimited } from "@/lib/rate-limit";
 
 const PIN_PATH = /^\/p\/([^/]+)$/;
+// The public pins database (/pins) — one request here can return a summary
+// of every registered pin instead of just one, making it a more efficient
+// scrape target than /p/{slug} itself, so it gets the same per-IP budget.
+const DIRECTORY_PATH = /^\/pins$/;
+// The series catalog (/series, /series/{id}) — same reasoning as /pins:
+// public, no-auth reads that can return a whole series' claimant list in
+// one request, and creating this content costs nothing (no physical
+// object required), so it gets the same per-IP budget too.
+const SERIES_PATH = /^\/series(\/.*)?$/;
 
 // Host-header branch between wpins.co (dumb redirector, brief section 3) and
 // wanderingpins.com (the real app). 302, not 301 — see brief section 3 for
@@ -38,6 +47,15 @@ export async function proxy(request: NextRequest) {
     // Compensating control for the check-digit spending a character on
     // error detection rather than entropy (brief section 8) — a ~1B
     // keyspace is otherwise scrapeable by sequential/random guessing.
+    if (await isRateLimited(getClientIp(request.headers))) {
+      return new NextResponse("Too many requests — please slow down and try again in a minute.", {
+        status: 429,
+        headers: { "Content-Type": "text/plain", "Retry-After": "60" },
+      });
+    }
+  }
+
+  if (DIRECTORY_PATH.test(request.nextUrl.pathname) || SERIES_PATH.test(request.nextUrl.pathname)) {
     if (await isRateLimited(getClientIp(request.headers))) {
       return new NextResponse("Too many requests — please slow down and try again in a minute.", {
         status: 429,

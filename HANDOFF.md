@@ -1,6 +1,6 @@
 # Wandering Pins — handoff notes
 
-Status as of 2026-08-29: v1 built per WANDERING_PINS_BRIEF.md, deployed, and live at wanderingpins.com. Since the initial build: added user profiles/auth, replaced addressed trades with unaddressed release, added camera-based QR scanning to pin lookup, added camera capture/crop/size-limits to holding photos, settled the physical sticker sheet's design, made the current holder's title and front photo public on the pin journey page (explicit user decision, loosening a brief-section-7 guarantee) while keeping notes permanently private, closed a real `rls_disabled_in_public` gap on every table, added timeouts around every Supabase Auth network call (middleware session-refresh, sign-in, and confirmation-link exchange) so a degraded Auth API can no longer stall the whole site or hang a sign-in attempt, made `/my-pins` rows show a photo/acquisition/current-location summary instead of just a name and date, let a holder log that a pin moved to a new location without releasing it (private photos/description, public place/date), let someone tentatively claim a still-held pin (invisible on the public page until the real holder releases, then auto-promotes), stopped rendering the pin's raw code as text on its public journey page, added inline "add details" (notes + photos) directly on the pin journey page next to each timeline line you own, replacing the old go-to-a-different-page edit flow, gave the pin's own public photo a dedicated top-of-page control instead of nesting it under the first acquisition line, let a location's owner verify it against their device's actual GPS position (public verified/not-verified status, device coordinates never stored), and added a public pin description right under the pin photo, editable the same "shows a placeholder, click Edit" way. See "Since v1" and "Since v1 continued" below for details, "Known open items" for what's still open, and "Future ideas" for what's discussed but not started. A new Claude Code session opened in this folder should read this file first, then the brief (which is kept in sync with current behavior, not historical).
+Status as of 2026-08-29: v1 built per WANDERING_PINS_BRIEF.md, deployed, and live at wanderingpins.com. Since the initial build: added user profiles/auth, replaced addressed trades with unaddressed release, added camera-based QR scanning to pin lookup, added camera capture/crop/size-limits to holding photos, settled the physical sticker sheet's design, made the current holder's title and front photo public on the pin journey page (explicit user decision, loosening a brief-section-7 guarantee) while keeping notes permanently private, closed a real `rls_disabled_in_public` gap on every table, added timeouts around every Supabase Auth network call (middleware session-refresh, sign-in, and confirmation-link exchange) so a degraded Auth API can no longer stall the whole site or hang a sign-in attempt, made `/my-pins` rows show a photo/acquisition/current-location summary instead of just a name and date, let a holder log that a pin moved to a new location without releasing it (private photos/description, public place/date), let someone tentatively claim a still-held pin (invisible on the public page until the real holder releases, then auto-promotes), stopped rendering the pin's raw code as text on its public journey page, added inline "add details" (notes + photos) directly on the pin journey page next to each timeline line you own, replacing the old go-to-a-different-page edit flow, gave the pin's own public photo a dedicated top-of-page control instead of nesting it under the first acquisition line, let a location's owner verify it against their device's actual GPS position (public verified/not-verified status, device coordinates never stored), added a public pin description right under the pin photo, editable the same "shows a placeholder, click Edit" way, added a public, sortable, searchable `/pins` database of every registered pin defaulting to "most traveled" (highest verified-location count), and added a crowd-created, no-admin-approval `/series` catalog (PinPics/blind-box-style set checklists, decoupled from the physical-sticker system entirely) where anyone can start or find a series, add items to it, and publicly claim which ones they have. See "Since v1" and "Since v1 continued" below for details, "Known open items" for what's still open, and "Future ideas" for what's discussed but not started. A new Claude Code session opened in this folder should read this file first, then the brief (which is kept in sync with current behavior, not historical).
 
 ## Since v1 (2026-08-08)
 
@@ -325,6 +325,104 @@ and front photo (brief section 7), by explicit user decision (asked directly, no
 
 Pushed to `main` in commit `43cfc72` — deployed via the usual Vercel auto-deploy.
 
+## Since v1 continued (2026-08-29), part 10
+
+**A public `/pins` database.** User's own request. New `/pins` page (`src/app/pins/page.tsx`) —
+public, no auth, sortable (most-traveled / newest / title) and searchable (title/description/holder
+name, case-insensitive substring) across every `REGISTERED` pin, defaulting to **most traveled**
+(highest count of verified locations — confirmed holdings plus check-ins with `verified = true`,
+section 6.6 — summed per pin). Paginated at 25/page. `src/lib/pin-directory.ts` splits this into a
+DB-loading half and a pure filter/sort/paginate half (`filterSortPaginate`, unit-tested in
+`pin-directory.test.ts`) — the pure half assumes the whole registered-pin set is already in memory
+rather than pushing search/sort into SQL, matching this codebase's existing style (`/my-pins` does an
+equivalent whole-set join in JS). **Known scaling limit, flagged rather than hidden:** every `/pins`
+request re-scans the full registered-pins table. Fine at this app's realistic ceiling (hundreds to
+low thousands of pins, bounded by physical stickers printed) — revisit with a real DB-side query if
+that stops being true. Rate-limited the same way `/p/{slug}` is (`src/proxy.ts`, new `DIRECTORY_PATH`
+matcher) — arguably more important here, since one request returns a summary of many pins instead of
+one. New test in `proxy.test.ts` mirrors the existing `/p/{slug}` rate-limit test.
+
+**A "part of a series" field — first built one way, then rebuilt a different way in the same
+session, before anything was committed.** Worth recording both attempts, since the first is what a
+future session might expect to find if it only skimmed an old draft of this file or the brief.
+
+The first attempt put `series`/`series_key` directly on `pins`, editable only by the pin's current
+confirmed holder, on the theory that a series is a fact about one physical object. Before committing,
+talking it through with the user surfaced that this was the wrong shape entirely: the actual want (an
+explicit comparison to PinPics and to blind-box sets like foambrain.com's Dungeon Crawler Carl line)
+is a checklist of *designs in a set*, most of which will never have a Wandering Pins sticker on them
+at all — a per-pin field structurally can't represent a design nobody's registered here. **That
+migration (`20260829212601_add_pin_series`) was applied to the live DB, then reverted by a second
+migration in the same session** (`20260829215220_add_series_tracking`, which both drops
+`pins.series`/`series_key` and adds the tables below) — noted here so the applied-then-reverted
+column doesn't look like a mistake to a future reader diffing the database against old memory of this
+file.
+
+**What actually shipped: a catalog decoupled from the physical-pin/sticker system entirely** —
+`series` / `series_items` / `series_claims` (see the schema comments and brief sections 5, 6.11, 7 for
+the full design). A user can start or find a series (`/series`, find-or-create by normalised name),
+add items/slots to it (`/series/{id}`, same find-or-create discipline scoped to that series), and
+publicly claim "I have this one" — a lightweight checkmark, not a holding, with no acquisition
+date/place/photos. A claim can optionally link to one of the claimant's own registered pins
+(`linked_pin_id`), which surfaces as a small read-only "Part of a series" line on `/p/[slug]`, right
+below the description, for the current holder only (gone once they release, same as
+title/description/photo, even though the claim itself keeps existing on the claimant's own `/series`
+view).
+
+The explicit design goal, stated directly by the user: this needs to work **without the admin
+(heavily) approving every series** — it's not the main thrust of the product. That constraint shaped
+every rule: crowd-created (any onboarded user, no approval step), additive-only editing (only a row's
+own creator can delete it, and only before anything depends on it — a series with items, or an item
+with claims, can't be removed), a per-user creation throttle (30 series+items/hour, the one anti-spam
+control, checked in `src/app/series/actions.ts`), and — the load-bearing mitigation — **no photos
+anywhere in the shared catalog**. Creating a series/item costs nothing (no physical object required,
+unlike everything else that gates a public field in this app), so a crowd-editable image board here
+would be a bigger moderation surface than the narrow per-holder photo exception, with none of that
+exception's natural friction. Claims are public by explicit user decision (the point is finding trade
+partners), same "socially reported, not proven" spirit as the rest of the product.
+
+- New tables: `Series`, `SeriesItem`, `SeriesClaim` (see schema.prisma comments for the full
+  rationale). `nameKey`/`labelKey` reuse the same normalisation as the abandoned first attempt
+  (`src/lib/series.ts`, unchanged) so near-duplicate typing still merges instead of forking the
+  catalog — enforced by real unique constraints, not just find-before-create in application code
+  (`series.integration.test.ts` asserts this directly against the DB).
+- New `src/app/series/actions.ts`: `findOrCreateSeries`, `addSeriesItem`, `claimItem`, `unclaimItem`,
+  `deleteSeriesItem`, `deleteSeries`. `claimItem` silently drops a `linkedPinId` that doesn't actually
+  belong to the claiming user (checked via `pinHolding.findFirst`) rather than failing the whole
+  claim — a forged pin id shouldn't block the core action over a cosmetic extra.
+- New pages `src/app/series/page.tsx` (index/search/create) and `src/app/series/[id]/page.tsx`
+  (detail/claim), new components `CreateSeriesForm.tsx`/`AddSeriesItemForm.tsx` (client,
+  `useActionState`, same pattern as `PinDescriptionWidget`).
+- `/series` and `/series/{id}` rate-limited the same way `/pins` is (`src/proxy.ts`'s new
+  `SERIES_PATH` matcher); new test in `proxy.test.ts`.
+- `WANDERING_PINS_BRIEF.md` updated: section 5 (new tables, `pins.series` removed), a new section
+  6.11 "Series tracking" (6.10 "Browse pins" edited to drop the series-filter mentions from the
+  abandoned attempt), and section 7 (reverted to three exceptions, series described as its own
+  separate public surface with its own knowing-risk-acceptance paragraph rather than folded into the
+  title/description/photo list).
+
+**Both migrations applied.** `20260829212601_add_pin_series` (the abandoned attempt) and
+`20260829215220_add_series_tracking` (the actual feature) were both pasted into the Supabase SQL
+editor and run by the user, then each resolved with `npx prisma migrate resolve --applied <name>` —
+same Deviations #5 two-step dance as every migration in this project. `npx tsc --noEmit`,
+`npx eslint .`, and the full test suite (88 tests, +3 for `series.integration.test.ts`'s direct DB
+constraint checks) are all clean.
+
+Verified live end-to-end in the browser afterward (restarted this session's own dev server first, to
+pick up the new Prisma Client fields — the usual gotcha) with a throwaway pin and account, both fully
+cleaned up after: created a series with deliberately leading/trailing whitespace in the name and
+confirmed it landed trimmed; added two items with position numbers, confirmed they render in order;
+claimed one with no linked pin, confirmed the delete/"Remove" affordance disappeared the moment it
+was claimed (additive-only-with-claims rule); registered a throwaway pin, used "Add this pin to a
+series" from `/p/[slug]`, and claimed a second item with that pin linked — confirmed `/p/[slug]` then
+showed "Part of a series: {name} — {item}" for the current holder; released the pin and confirmed
+that line disappeared from `/p/[slug]` while the claim itself kept showing on the user's own
+`/series/{id}` view, exactly per the "gone from the journey page, not from the claim" design; signed
+out entirely and confirmed `/series` and `/series/{id}` both remain browsable with claimant usernames
+visible and "Sign in to claim" in place of the claim button. One real UX bug caught during this pass
+and fixed before commit: the claim and unclaim buttons both read "I have this," which is ambiguous
+out of visual context — the unclaim button now reads "✓ Remove my claim."
+
 ## Future ideas (not started, not committed to)
 
 - **Photo content moderation** (porn/violence filtering) before a photo is accepted — now relevant
@@ -371,7 +469,6 @@ The brief got some things right in principle but wrong in a couple of real-world
 - The Supabase email-change confirmation doesn't currently send (see Deviations #6) — settings-page email changes won't actually reach anyone until that's fixed in the dashboard.
 - A pre-existing open-redirect gap in `sendMagicLink` (`src/app/sign-in/actions.ts`) — its `next` param isn't validated as same-origin before being used to build the redirect URL, unlike the `safeNext()` helper (`src/lib/auth.ts`) added alongside it for the newer onboarding/password-sign-in flows. Low severity, not yet fixed; flagged as a spawned task during this session (may or may not still be showing as a chip depending on how long ago that was).
 - **`requireAppUser`'s own claims check is still untimed** (see part 5 above) — a deliberate tradeoff, not an oversight, but worth revisiting explicitly if a protected page hanging during a Supabase blip becomes the actual complaint next time, the same way the sign-in-specific timeouts got revisited once they became the complaint.
-
 ## Test coverage
 
-76 vitest tests (`npm test`), mix of pure-logic and live-integration (hits the real Supabase DB and MapTiler API — needs `.env` populated). `npx tsc --noEmit` and `npx eslint .` should both be clean before committing.
+88 vitest tests (`npm test`), mix of pure-logic and live-integration (hits the real Supabase DB and MapTiler API — needs `.env` populated). `npx tsc --noEmit` and `npx eslint .` should both be clean before committing.

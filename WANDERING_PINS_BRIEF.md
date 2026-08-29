@@ -165,6 +165,9 @@ The physical object.
 
 Note there is **no title field on the pin.** See section 7 — the pin's name is private in v1.
 
+There is also no `series` field on `pins` — series/set tracking (section 6.11) is deliberately
+independent of this table. See `series`/`series_items`/`series_claims` below.
+
 **Lifecycle.** A slug is created as `MINTED` when a sticker batch is generated — before the sticker
 is even printed. Scanning a `MINTED` pin must render a "this pin hasn't been registered yet, claim
 it" page, **not a 404.** The first registration moves it to `REGISTERED`.
@@ -291,6 +294,39 @@ There is no `trades` table. Releasing a pin has no recipient to record (section 
 holder just closes their own holding, and whoever finds the pin later opens a fresh one for
 themselves the same way anyone claims a never-before-registered pin. There's nothing to address, so
 there's nothing to store beyond the holding itself.
+
+### `series` / `series_items` / `series_claims` — set/checklist tracking
+
+Deliberately independent of `pins`/`pin_holdings` above. This is a PinPics/PinAndPop-style set
+checklist ("I have 4 of 12 in this blind-box series"), and most pins someone wants to track that way
+will never carry a Wandering Pins sticker at all — so unlike everything else in this document, this
+feature cannot require a registered physical pin as a prerequisite. See section 6.11.
+
+| table | field | notes |
+|---|---|---|
+| `series` | `id`, `name`, `name_key`, `created_by`, `created_at` | `name` is free-typed (e.g. "Dungeon Crawler Carl Blind Box Series"); `name_key` is it normalised (trimmed, whitespace-collapsed, lowercased) and **unique** — creating a series is really find-or-create by this key, so near-duplicate typing can't fork the catalog |
+| `series_items` | `id`, `series_id`, `label`, `label_key`, `position` (nullable), `created_by`, `created_at` | one slot/design within a series; `(series_id, label_key)` is unique, same find-or-create discipline |
+| `series_claims` | `id`, `series_item_id`, `user_id`, `linked_pin_id` (nullable), `claimed_at` | "I have this one" — a public checkmark, not a holding: no acquisition date/place/photos. `(series_item_id, user_id)` is unique — at most one claim per user per item. `linked_pin_id` is an optional, unvalidated-against-reality convenience link to one of the claimant's own registered pins |
+
+This is explicitly **not the main thrust of the product** (user's own framing), which shapes the
+whole design: it works with no admin curation at all.
+
+- **Crowd-created**: any onboarded user can create a series or add an item to one — no approval
+  step, same self-service spirit as everything else in this app.
+- **Additive-only editing**, to limit vandalism without a moderation queue: only a row's own creator
+  may remove it, and only while nothing depends on it yet (a series with items, or an item with
+  claims, can't be deleted). Nobody can edit or delete a row someone else created, at all.
+- **Text-only on the shared catalog — no photos on `series`/`series_items`.** Creating a series or
+  item costs nothing (no physical object, no sticker, unlike everything that gates
+  title/description/front photo on `pin_titles`), so a crowd-editable public image board here would
+  be a materially bigger moderation surface than that narrow per-holder exception, with none of its
+  natural friction. See section 7.
+- **Claims are public** (username, subject to `show_name_publicly`) by explicit user decision — the
+  point is helping collectors find each other to trade, the same "socially reported, not
+  cryptographically proven" spirit as section 1. Nothing here verifies a claim is real.
+- A per-user creation throttle (30 series+items per hour, checked in
+  `src/app/series/actions.ts`) is the one anti-spam control, since anything stronger would mean an
+  admin queue — the thing this whole design exists to avoid.
 
 ---
 
@@ -428,6 +464,42 @@ this one page for editing your own. Two independent forms:
   the same underlying identity (and so the same collection) carries over; signing in with a
   different email instead of using this flow creates an unrelated new, empty account.
 
+### 6.10 Browse pins
+
+Route: `/pins`. **No authentication required**, same as `/p/{slug}` — a public, sortable, searchable
+index over every `REGISTERED` pin's public summary (title, description, front photo, current holder,
+and verified-location count). Defaults to sorted by **most traveled** (highest verified-location
+count first, section 6.6), since that ordering is the most interesting one to land on cold. Also
+sortable by newest-registered and by title, and searchable by free text across
+title/description/holder name. Paginated rather than rendering the whole table in one response.
+
+Rate-limited by IP the same way `/p/{slug}` is (section 8) — arguably more important here, since one
+request returns a summary of many pins instead of one, making it a more efficient scrape target.
+
+### 6.11 Series tracking
+
+Routes: `/series` (index) and `/series/{id}` (one series' items and claimants). **No authentication
+required to browse**, same spirit as `/pins` — creating a series/item or claiming one requires
+signing in. See the `series`/`series_items`/`series_claims` tables in section 5 for the full design
+rationale (crowd-created, additive-only, no admin curation, text-only catalog, public claims).
+
+- `/series`: search existing series by name, or type a name and submit to find-or-create one
+  (landing on the existing series if that normalised name already exists, otherwise creating a new
+  one and landing there).
+- `/series/{id}`: the series' items, each showing who has publicly claimed it (subject to
+  `show_name_publicly`) and a claim/unclaim control for the signed-in viewer. An "add a pin to this
+  series" form appends a new item (again find-or-create, scoped to this series). An item's own
+  creator can remove it, but only before anyone has claimed it (additive-only, section 5).
+- `/p/{slug}` shows a lightweight, read-only link-through right below the pin's photo/description
+  (same slot the earlier per-pin exploration used, before it was superseded by this design): if the
+  **current holder** has a claim linked to this specific physical pin (`series_claims.linked_pin_id`),
+  it's shown there as "Part of a series: {series} — {item}," linking to `/series/{id}`. If they don't,
+  they see an "Add this pin to a series" link into `/series` instead. Like title/description/photo,
+  this link-through is scoped to the current holder and disappears once they release the pin — though
+  the claim itself keeps existing on their own `/series/{id}` view regardless of who holds the pin
+  next, since a claim was never really about *this specific* Wandering Pins sticker to begin with.
+- Rate-limited by IP the same way `/pins` is (section 8).
+
 ---
 
 ## 7. What is public, and what is not
@@ -453,6 +525,24 @@ gone the moment it's released:
 
 Nothing else free-typed or user-uploaded ever appears on a public page — everything in
 `holding_notes`, every other photo, and every check-in's description/photos stay private always.
+
+### Series tracking is a separate public surface, outside this exception list
+
+The `series`/`series_items`/`series_claims` catalog (section 5, section 6.11) is public by design,
+but it is deliberately **not** modeled as a fourth exception above — it doesn't belong to a pin's
+journey at all, and doesn't require a registered pin to exist first:
+
+- `series.name` and `series_items.label` are free-typed and public with **no per-pin gate** — anyone
+  onboarded can create either, whether or not they've ever registered a physical Wandering Pins pin.
+  This is a materially lower bar than title/description/photo above, which all require first minting,
+  registering, and holding a real sticker.
+- `series_claims` (who has which item) is public — username, subject to `show_name_publicly` — by
+  explicit user decision, so collectors can find trade partners.
+- The mitigating constraint, also by explicit design: **no photos anywhere in this catalog.** Only
+  the narrow per-holder exception above ever puts a user-uploaded image on a public page; the series
+  catalog stays text-only specifically so it doesn't multiply that risk across a crowd-editable,
+  no-prerequisite surface. See section 5 for the rest of the anti-abuse design (additive-only editing,
+  find-or-create key normalisation, a per-user creation throttle).
 
 The pin's slug itself is **no longer rendered as text on `/p/{slug}`**, for anyone — reverses the
 original design, which listed it as public. It still has to appear in the URL to reach the page at
@@ -481,16 +571,26 @@ more than a prettier page.
 
 v1 shipped with the public page showing no picture of the pin and no name for it — a stranger saw a
 journey, not an object. That loss was accepted deliberately, but not permanently: by explicit,
-repeated user decision, the current holder's title, description, and front photo are now the
-exception to this whole section, accepted **without** the four prerequisites below being built
-first. This is a real, knowing risk acceptance, not an oversight — flagged here so a future session
-doesn't "fix" it back to private, and doesn't assume the prerequisites exist just because the
-exception does.
+repeated user decision, the current holder's title, description, and front photo are the exception to
+this whole section, accepted **without** the four prerequisites below being built first. This is a
+real, knowing risk acceptance, not an oversight — flagged here so a future session doesn't "fix" it
+back to private, and doesn't assume the prerequisites exist just because the exception does.
 
 Check-in descriptions/photos and everything in `holding_notes` were **not** given the same
 exception — they stayed private specifically because no moderation surface exists yet (see "Photo
 content moderation" in `HANDOFF.md`'s Future Ideas). If that ever gets built, extending the same
 public exception to them would be the natural next step.
+
+**The series catalog (section 5, 6.11) is a second, separate knowing risk acceptance**, taken for a
+different reason: not "no picture of the pin," but "no admin curation," per the user's own explicit
+framing that this feature is not the main thrust of the product and shouldn't need one. The
+mitigation taken is different too — not the four prerequisites below (which are about photos), but:
+no photos in this catalog at all, additive-only editing so nothing can be defaced, and a per-user
+creation throttle so spam has a cost. A crowd-created public-text surface with zero physical-object
+prerequisite is still a real moderation exposure (a series/item name could itself be abusive text) —
+narrower than a public image board, but not zero. If it ever needs more than the throttle, the next
+step is a report affordance (not yet built) rather than assuming the prerequisites below apply, since
+those are specifically about images.
 
 ### What full public photos/free text (beyond the current narrow exception) would need
 
@@ -517,6 +617,10 @@ Do not extend the public surface any further until all of the following exist:
 - Rate-limit `/p/{slug}` by IP. With a ~1 billion keyspace, random guessing is otherwise a viable
   way to scrape the map. This is the compensating control for spending a character on the check
   digit rather than on entropy.
+- Rate-limit `/pins` (section 6.10) the same way — one request there returns a public summary of
+  many pins rather than one, so it's a more efficient scrape target than `/p/{slug}`, not a lesser
+  one. Paginate it too, so no single response carries the whole table.
+- Rate-limit `/series` and `/series/{id}` (section 6.11) the same way, for the same reason.
 
 ---
 

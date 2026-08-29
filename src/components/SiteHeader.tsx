@@ -17,6 +17,12 @@ export async function SiteHeader() {
       </Link>
       {claims ? (
         <div className="flex items-center gap-4">
+          <Link href="/pins" className="text-sm font-medium text-neutral-700 hover:text-black">
+            Browse pins
+          </Link>
+          <Link href="/series" className="text-sm font-medium text-neutral-700 hover:text-black">
+            Series
+          </Link>
           <Link href="/my-pins" className="text-sm font-medium text-neutral-700 hover:text-black">
             My pins
           </Link>
@@ -31,9 +37,17 @@ export async function SiteHeader() {
           </form>
         </div>
       ) : (
-        <Link href="/sign-in" className="text-sm font-medium text-blue-600 hover:text-blue-700">
-          Sign in
-        </Link>
+        <div className="flex items-center gap-4">
+          <Link href="/pins" className="text-sm font-medium text-neutral-700 hover:text-black">
+            Browse pins
+          </Link>
+          <Link href="/series" className="text-sm font-medium text-neutral-700 hover:text-black">
+            Series
+          </Link>
+          <Link href="/sign-in" className="text-sm font-medium text-blue-600 hover:text-blue-700">
+            Sign in
+          </Link>
+        </div>
       )}
     </header>
   );
