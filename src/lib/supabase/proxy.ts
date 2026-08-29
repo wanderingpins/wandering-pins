@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { withTimeout, AUTH_CALL_TIMEOUT_MS } from "@/lib/with-timeout";
 
 // getClaims() only makes a network call when the token needs refreshing
 // (expired access token, or a cold instance with no cached JWKS yet) — but
@@ -7,15 +8,10 @@ import { NextResponse, type NextRequest } from "next/server";
 // longer than a normal page load should ever take, and this middleware runs
 // on every request site-wide, not just signed-in ones. Capping it means a
 // slow Auth provider costs one skipped session refresh instead of stalling
-// every visitor's every click.
+// every visitor's every click. Deliberately shorter than AUTH_CALL_TIMEOUT_MS
+// below — this one fails silently (skip the refresh), so it can afford to
+// be stricter than a call whose timeout is user-visible.
 const GET_CLAIMS_TIMEOUT_MS = 3000;
-
-function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T | "timeout"> {
-  return Promise.race([
-    promise,
-    new Promise<"timeout">((resolve) => setTimeout(() => resolve("timeout"), ms)),
-  ]);
-}
 
 // Refreshes the Supabase Auth session on every request and keeps the
 // refreshed cookies in sync between the incoming request (so Server
@@ -95,9 +91,13 @@ export async function exchangeStrayAuthCode(request: NextRequest): Promise<NextR
     }
   );
 
-  const { error } = await supabase.auth.exchangeCodeForSession(code!);
-  if (error) {
-    console.error("stray code exchange failed", { message: error.message });
+  const result = await withTimeout(supabase.auth.exchangeCodeForSession(code!), AUTH_CALL_TIMEOUT_MS);
+  if (result === "timeout") {
+    console.error(`exchangeCodeForSession timed out after ${AUTH_CALL_TIMEOUT_MS}ms`);
+    return NextResponse.redirect(new URL("/auth/error", request.url));
+  }
+  if (result.error) {
+    console.error("stray code exchange failed", { message: result.error.message });
     return NextResponse.redirect(new URL("/auth/error", request.url));
   }
   return response;

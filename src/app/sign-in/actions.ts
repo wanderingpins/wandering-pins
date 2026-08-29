@@ -4,6 +4,9 @@ import { z } from "zod";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { safeNext } from "@/lib/auth";
+import { withTimeout, AUTH_CALL_TIMEOUT_MS } from "@/lib/with-timeout";
+
+const TIMEOUT_MESSAGE = "This is taking longer than expected — please try again in a moment.";
 
 const emailSchema = z.string().email();
 
@@ -23,17 +26,28 @@ export async function sendMagicLink(
   const destinationUrl = new URL(typeof next === "string" && next ? next : "/", process.env.NEXT_PUBLIC_APP_URL);
 
   const supabase = await createClient();
-  const { error } = await supabase.auth.signInWithOtp({
-    email: parsed.data,
-    options: {
-      emailRedirectTo: destinationUrl.toString(),
-    },
-  });
+  const result = await withTimeout(
+    supabase.auth.signInWithOtp({
+      email: parsed.data,
+      options: {
+        emailRedirectTo: destinationUrl.toString(),
+      },
+    }),
+    AUTH_CALL_TIMEOUT_MS
+  );
 
-  if (error) {
-    console.error("signInWithOtp failed", { status: error.status, code: error.code, message: error.message });
+  if (result === "timeout") {
+    console.error(`signInWithOtp timed out after ${AUTH_CALL_TIMEOUT_MS}ms`);
+    return { status: "error", message: TIMEOUT_MESSAGE };
+  }
+  if (result.error) {
+    console.error("signInWithOtp failed", {
+      status: result.error.status,
+      code: result.error.code,
+      message: result.error.message,
+    });
     const message =
-      error.code === "over_email_send_rate_limit"
+      result.error.code === "over_email_send_rate_limit"
         ? "You've requested a few of these already — wait about a minute and try again."
         : "Couldn't send that link — please try again.";
     return { status: "error", message };
@@ -64,8 +78,12 @@ export async function signInWithPassword(
   }
 
   const supabase = await createClient();
-  const { error } = await supabase.auth.signInWithPassword(parsed.data);
-  if (error) {
+  const result = await withTimeout(supabase.auth.signInWithPassword(parsed.data), AUTH_CALL_TIMEOUT_MS);
+  if (result === "timeout") {
+    console.error(`signInWithPassword timed out after ${AUTH_CALL_TIMEOUT_MS}ms`);
+    return { status: "error", message: TIMEOUT_MESSAGE };
+  }
+  if (result.error) {
     return { status: "error", message: "Incorrect email or password." };
   }
 

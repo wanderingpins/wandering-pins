@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import type { EmailOtpType } from "@supabase/supabase-js";
+import { withTimeout, AUTH_CALL_TIMEOUT_MS } from "@/lib/with-timeout";
 
 // Handles both link shapes Supabase can send: the PKCE `code` param
 // (exchangeCodeForSession — this project's default confirmation flow) and
@@ -46,14 +47,18 @@ export async function GET(request: NextRequest) {
     }
   );
 
-  const { error } = code
-    ? await supabase.auth.exchangeCodeForSession(code)
+  const result = code
+    ? await withTimeout(supabase.auth.exchangeCodeForSession(code), AUTH_CALL_TIMEOUT_MS)
     : tokenHash && type
-      ? await supabase.auth.verifyOtp({ type, token_hash: tokenHash })
+      ? await withTimeout(supabase.auth.verifyOtp({ type, token_hash: tokenHash }), AUTH_CALL_TIMEOUT_MS)
       : { error: new Error("missing code or token_hash") };
 
-  if (error) {
-    console.error("auth confirm failed", { message: error.message });
+  if (result === "timeout") {
+    console.error(`auth confirm timed out after ${AUTH_CALL_TIMEOUT_MS}ms`);
+    return NextResponse.redirect(errorUrl);
+  }
+  if (result.error) {
+    console.error("auth confirm failed", { message: result.error.message });
     return NextResponse.redirect(errorUrl);
   }
 

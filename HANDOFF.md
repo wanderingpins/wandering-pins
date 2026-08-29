@@ -1,6 +1,6 @@
 # Wandering Pins — handoff notes
 
-Status as of 2026-08-29: v1 built per WANDERING_PINS_BRIEF.md, deployed, and live at wanderingpins.com. Since the initial build: added user profiles/auth, replaced addressed trades with unaddressed release, added camera-based QR scanning to pin lookup, added camera capture/crop/size-limits to holding photos, settled the physical sticker sheet's design, made the current holder's title and front photo public on the pin journey page (explicit user decision, loosening a brief-section-7 guarantee) while keeping notes permanently private, closed a real `rls_disabled_in_public` gap on every table, added a timeout around the middleware's session-refresh call so a degraded Supabase Auth API doesn't stall the whole site, and made `/my-pins` rows show a photo/acquisition/current-location summary instead of just a name and date. See "Since v1" and "Since v1 continued" below for details, "Known open items" for a real gap still open (sign-in itself has no timeout against a slow Auth API), and "Future ideas" for what's discussed but not started. A new Claude Code session opened in this folder should read this file first, then the brief (which is kept in sync with current behavior, not historical).
+Status as of 2026-08-29: v1 built per WANDERING_PINS_BRIEF.md, deployed, and live at wanderingpins.com. Since the initial build: added user profiles/auth, replaced addressed trades with unaddressed release, added camera-based QR scanning to pin lookup, added camera capture/crop/size-limits to holding photos, settled the physical sticker sheet's design, made the current holder's title and front photo public on the pin journey page (explicit user decision, loosening a brief-section-7 guarantee) while keeping notes permanently private, closed a real `rls_disabled_in_public` gap on every table, added timeouts around every Supabase Auth network call (middleware session-refresh, sign-in, and confirmation-link exchange) so a degraded Auth API can no longer stall the whole site or hang a sign-in attempt, and made `/my-pins` rows show a photo/acquisition/current-location summary instead of just a name and date. See "Since v1" and "Since v1 continued" below for details, "Known open items" for what's still open, and "Future ideas" for what's discussed but not started. A new Claude Code session opened in this folder should read this file first, then the brief (which is kept in sync with current behavior, not historical).
 
 ## Since v1 (2026-08-08)
 
@@ -59,6 +59,18 @@ Pushed to `main` in commit `4a51db7` — deployed via the usual Vercel auto-depl
 
 Pushed to `main` in commit `ca36e8d` — deployed via the usual Vercel auto-deploy.
 
+## Since v1 continued (2026-08-29), part 3
+
+**Timeouts on every remaining Supabase Auth call.** The 2026-08-29 middleware fix (part 1 above) only covered `getClaims()`; this closes the gap noted in that day's "Known open items" — `signInWithPassword`, `signInWithOtp`, and `exchangeCodeForSession` (two call sites: the stray-code path in `src/lib/supabase/proxy.ts`, and `/auth/confirm`'s own direct handling, plus its `verifyOtp` fallback) still called out to Supabase with no timeout at all, and `signInWithPassword` was directly observed hanging 30+s against production during a live Auth/API Gateway incident.
+
+- `src/lib/with-timeout.ts` — new shared `withTimeout()` (the same race-against-a-timer the middleware fix already used, now deduplicated out of `proxy.ts`) plus `AUTH_CALL_TIMEOUT_MS` (8s), used by every *foreground* call below. Deliberately longer than the middleware's own 3s `GET_CLAIMS_TIMEOUT_MS` (kept local to `proxy.ts`, unchanged): that one fails silently (skip one background refresh, no one's watching), so it can afford to be stricter, while these fail visibly to a person actively waiting on a button or a confirmation link — too short a timeout there would misreport a merely-slow-but-working call as broken.
+- `src/app/sign-in/actions.ts` — `signInWithOtp` and `signInWithPassword` both return `{status: "error", message: "This is taking longer than expected — please try again in a moment."}` on timeout, reusing each form's existing error-message UI in `SignInForm.tsx` (no new UI needed).
+- `src/lib/supabase/proxy.ts`'s `exchangeStrayAuthCode` and `src/app/auth/confirm/route.ts` — both redirect to `/auth/error` on timeout, same as their existing exchange-failed path (that page's "didn't work, request a new one" copy reads fine for a timeout too; not worth a distinct message for how rarely this fires).
+
+Verified: full test suite (including the two new `with-timeout.test.ts` cases) plus `tsc --noEmit` and `eslint .` all clean. Not verified live against an actual Supabase slowdown (nothing to point it at on demand) — logic mirrors the already-incident-tested middleware timeout, just at a longer duration and with a user-visible outcome instead of a silent skip.
+
+Pushed to `main` in commit `<pending>` — deployed via the usual Vercel auto-deploy once pushed.
+
 ## Future ideas (not started, not committed to)
 
 - **Multi-location per-visit logging**: right now a holding has one place/date/note. The user is considering letting a single holder log the pin visiting *multiple* locations during their stint — each with its own photo(s) and description, essentially a mini-timeline within a holding. Bigger schema change (new child model under `PinHolding`), not started.
@@ -98,8 +110,7 @@ The brief got some things right in principle but wrong in a couple of real-world
 - The low-stakes `wanderingpins.com` → `www.wanderingpins.com` 308 (see Domains above) could be tidied later if desired.
 - The Supabase email-change confirmation doesn't currently send (see Deviations #6) — settings-page email changes won't actually reach anyone until that's fixed in the dashboard.
 - A pre-existing open-redirect gap in `sendMagicLink` (`src/app/sign-in/actions.ts`) — its `next` param isn't validated as same-origin before being used to build the redirect URL, unlike the `safeNext()` helper (`src/lib/auth.ts`) added alongside it for the newer onboarding/password-sign-in flows. Low severity, not yet fixed; flagged as a spawned task during this session (may or may not still be showing as a chip depending on how long ago that was).
-- **No timeout on the actual sign-in calls.** The 2026-08-29 middleware fix (see "Since v1 continued" above) only protects page loads that don't strictly need Auth. `signInWithPassword` (`src/app/sign-in/actions.ts`) was directly observed hanging 30+ seconds against production during a live Supabase Auth/API Gateway incident before eventually succeeding — it, `signInWithOtp`, and `exchangeCodeForSession` all still call out to Supabase with no timeout at all. Not fixed; worth revisiting if sign-in itself becomes the complaint next time Supabase has a bad day.
 
 ## Test coverage
 
-65 vitest tests (`npm test`), mix of pure-logic and live-integration (hits the real Supabase DB and MapTiler API — needs `.env` populated). `npx tsc --noEmit` and `npx eslint .` should both be clean before committing.
+67 vitest tests (`npm test`), mix of pure-logic and live-integration (hits the real Supabase DB and MapTiler API — needs `.env` populated). `npx tsc --noEmit` and `npx eslint .` should both be clean before committing.
