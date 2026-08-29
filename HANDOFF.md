@@ -290,7 +290,7 @@ coordinates.
   privacy rules (never store the device coordinates). `tsc`, `eslint`, and the full test suite (76
   tests, +3 for `geo-distance.test.ts`) all clean.
 
-Pushed to `main` in commit `<pending part 8>` — deployed via the usual Vercel auto-deploy once pushed.
+Pushed to `main` in commit `43cfc72` — deployed via the usual Vercel auto-deploy once pushed.
 
 ## Since v1 continued (2026-08-29), part 9
 
@@ -320,7 +320,7 @@ and front photo (brief section 7), by explicit user decision (asked directly, no
   needs-a-restart snag as part 8 (stale in-memory Prisma Client) — same fix, already know to expect
   it now. `tsc`, `eslint`, and the full test suite (76 tests, unchanged) all clean.
 
-Pushed to `main` in commit `<pending part 9>` — deployed via the usual Vercel auto-deploy once pushed.
+Pushed to `main` in commit `43cfc72` — deployed via the usual Vercel auto-deploy once pushed.
 
 ## Future ideas (not started, not committed to)
 
