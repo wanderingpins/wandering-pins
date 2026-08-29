@@ -8,8 +8,10 @@ import { getOwnedHolding } from "@/lib/holdings";
 import { processHoldingPhoto } from "@/lib/image";
 import { uploadHoldingPhoto, deleteHoldingPhoto } from "@/lib/storage";
 import { MAX_RAW_UPLOAD_BYTES } from "@/lib/photo-limits";
+import { haversineDistanceKm, VERIFY_TOLERANCE_KM } from "@/lib/geo-distance";
 
 export type ActionState = { status: "idle" | "ok" | "error"; message?: string };
+export type VerifyLocationResult = { status: "ok" | "error"; message?: string };
 
 const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp"];
 
@@ -83,6 +85,38 @@ export async function updateHoldingNote(holdingId: string, _prevState: ActionSta
   return { status: "ok" };
 }
 
+// Narrower than updateHoldingDetails above — touches only PinTitle's
+// description, leaving the title itself alone. Used by the top-of-page
+// public description widget on /p/[slug] (src/components/
+// PinDescriptionWidget.tsx), which only ever shows a description textarea,
+// not the full holdings-page form.
+export async function updateDescription(holdingId: string, _prevState: ActionState, formData: FormData): Promise<ActionState> {
+  const user = await requireAppUser(`/holdings/${holdingId}`);
+  const holding = await getOwnedHolding(holdingId, user.id);
+  if (!holding) {
+    return { status: "error", message: "That's not your holding." };
+  }
+
+  const description = (formData.get("description") as string | null)?.trim() ?? "";
+  const existing = await prisma.pinTitle.findUnique({ where: { holdingId } });
+
+  if (description) {
+    await prisma.pinTitle.upsert({
+      where: { holdingId },
+      update: { description },
+      create: { holdingId, title: "", description },
+    });
+  } else if (existing?.title) {
+    // Keep the row for its title — just clear the description.
+    await prisma.pinTitle.update({ where: { holdingId }, data: { description: null } });
+  } else {
+    await prisma.pinTitle.deleteMany({ where: { holdingId } });
+  }
+
+  revalidatePath(`/holdings/${holdingId}`);
+  return { status: "ok" };
+}
+
 const kindSchema = z.enum(["FRONT", "BACK", "OTHER"]);
 
 export async function uploadPhoto(holdingId: string, _prevState: ActionState, formData: FormData): Promise<ActionState> {
@@ -133,4 +167,41 @@ export async function deletePhoto(holdingId: string, photoId: string) {
   await deleteHoldingPhoto(photo.url);
   await prisma.holdingPhoto.delete({ where: { id: photoId } });
   revalidatePath(`/holdings/${holdingId}`);
+}
+
+const coordsSchema = z.object({ lat: z.number().min(-90).max(90), lng: z.number().min(-180).max(180) });
+
+// Called directly from a client event handler (not a <form>), with the
+// browser's own geolocation reading — not stored, per the deliberate
+// decision not to keep raw device coordinates (see the schema comment on
+// PinHolding.verified). Only the pass/fail boolean survives. An honesty
+// nudge, not proof: not tamper-proof, and the tolerance is generous because
+// city-level geocoding can legitimately be tens of km off (see geocode.ts).
+export async function verifyHoldingLocation(
+  holdingId: string,
+  deviceLat: number,
+  deviceLng: number
+): Promise<VerifyLocationResult> {
+  const user = await requireAppUser(`/holdings/${holdingId}`);
+  const holding = await getOwnedHolding(holdingId, user.id);
+  if (!holding) {
+    return { status: "error", message: "That's not your holding." };
+  }
+
+  const parsed = coordsSchema.safeParse({ lat: deviceLat, lng: deviceLng });
+  if (!parsed.success) {
+    return { status: "error", message: "Location couldn't be verified." };
+  }
+
+  const distanceKm = haversineDistanceKm(parsed.data.lat, parsed.data.lng, holding.lat, holding.lng);
+  if (distanceKm > VERIFY_TOLERANCE_KM) {
+    return {
+      status: "error",
+      message: `That doesn't look like it's near ${holding.placeLabel} — leaving this unverified.`,
+    };
+  }
+
+  await prisma.pinHolding.update({ where: { id: holdingId }, data: { verified: true } });
+  revalidatePath(`/holdings/${holdingId}`);
+  return { status: "ok" };
 }

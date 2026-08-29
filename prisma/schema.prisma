@@ -107,6 +107,12 @@ model User {
 // index). When the real holder releases, the pending holding auto-promotes
 // (pending flips to false) with no other changes to what it already
 // recorded.
+// `verified`: the holder can confirm their device's actual GPS position was
+// near `lat`/`lng` at the moment they checked (see verifyHoldingLocation in
+// actions.ts) — an honesty nudge, not proof (not tamper-proof, and city-level
+// geocoding can legitimately be tens of km off, hence the generous tolerance
+// in src/lib/geo-distance.ts). Public, like every other field here. The raw
+// device coordinates are deliberately never stored — only this boolean.
 model PinHolding {
   id          String      @id @default(cuid())
   pinId       String      @map("pin_id")
@@ -118,6 +124,7 @@ model PinHolding {
   lng         Float
   releasedAt  DateTime?   @map("released_at")
   pending     Boolean     @default(false)
+  verified    Boolean     @default(false)
 
   pin  Pin  @relation(fields: [pinId], references: [id])
   user User @relation(fields: [userId], references: [id])
@@ -165,11 +172,22 @@ model HoldingPhoto {
   @@map("holding_photos")
 }
 
-// Private, because it's free-typed. See brief section 7.
+// Despite the name (kept to avoid an invasive rename), this is the current
+// holder's whole public presentation of the pin: a title and now a longer
+// description too. Both are free-typed, which the brief's general rule
+// (section 7) treats as private by default — but by explicit user
+// decision, both are deliberate, narrow public exceptions, exactly like the
+// FRONT-kind HoldingPhoto: visible ONLY for the current open holding,
+// resolved through a dedicated path in /p/[slug]/page.tsx (never through
+// toPublicHolding, which stays the narrow structurally-safe boundary for
+// everything else). `title` stays a required column for backward
+// compatibility — a description-only row stores `title: ""`, which the
+// display layer already treats the same as "no title" ("Untitled Pin").
 model PinTitle {
-  id        String @id @default(cuid())
-  holdingId String @unique @map("holding_id")
-  title     String
+  id          String  @id @default(cuid())
+  holdingId   String  @unique @map("holding_id")
+  title       String
+  description String?
 
   holding PinHolding @relation(fields: [holdingId], references: [id])
 
@@ -189,6 +207,7 @@ model HoldingCheckIn {
   placeLabel String   @map("place_label")
   lat        Float
   lng        Float
+  verified   Boolean  @default(false)
   createdAt  DateTime @default(now()) @map("created_at")
 
   holding PinHolding @relation(fields: [holdingId], references: [id])

@@ -17,6 +17,7 @@ describe("toPublicHolding", () => {
       lat: 28.5,
       lng: -81.4,
       releasedAt: null,
+      verified: true,
       user: { username: "tim", showNamePublicly: true },
       // Simulates a future query accidentally including private relations.
       title: { title: "My secret nickname for this pin" },
@@ -35,6 +36,7 @@ describe("toPublicHolding", () => {
       lat: 28.5,
       lng: -81.4,
       isOpen: true,
+      verified: true,
     });
     expect(result).not.toHaveProperty("title");
     expect(result).not.toHaveProperty("note");
@@ -52,6 +54,7 @@ describe("toPublicHolding", () => {
       lat: 39.7,
       lng: -105.0,
       releasedAt: new Date(),
+      verified: false,
       user: { username: "sarah", showNamePublicly: false },
     };
     expect(toPublicHolding(holding).holderDisplayName).toBe("a collector");
@@ -65,6 +68,7 @@ describe("toPublicCheckIn", () => {
       placeLabel: "Denver, CO",
       lat: 39.7,
       lng: -105.0,
+      verified: true,
       holder: { username: "tim", showNamePublicly: true },
       // Simulates a future query accidentally including private relations.
       note: { body: "Left it on a friend's desk for a week" },
@@ -80,6 +84,7 @@ describe("toPublicCheckIn", () => {
       holderDisplayName: "tim",
       lat: 39.7,
       lng: -105.0,
+      verified: true,
     });
     expect(result).not.toHaveProperty("note");
     expect(result).not.toHaveProperty("photos");
@@ -93,6 +98,7 @@ describe("toPublicCheckIn", () => {
       placeLabel: "Osaka, Japan",
       lat: 34.7,
       lng: 135.5,
+      verified: false,
       holder: { username: "sarah", showNamePublicly: false },
     };
     expect(toPublicCheckIn(checkIn).holderDisplayName).toBe("a collector");

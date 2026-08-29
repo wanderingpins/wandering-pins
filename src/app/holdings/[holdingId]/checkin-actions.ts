@@ -9,8 +9,10 @@ import { geocodePlace } from "@/lib/geocode";
 import { processHoldingPhoto } from "@/lib/image";
 import { uploadHoldingPhoto, deleteHoldingPhoto } from "@/lib/storage";
 import { MAX_RAW_UPLOAD_BYTES, MAX_CHECKIN_PHOTOS } from "@/lib/photo-limits";
+import { haversineDistanceKm, VERIFY_TOLERANCE_KM } from "@/lib/geo-distance";
 
 export type ActionState = { status: "idle" | "ok" | "error"; message?: string };
+export type VerifyLocationResult = { status: "ok" | "error"; message?: string };
 
 const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp"];
 
@@ -147,6 +149,43 @@ export async function deleteCheckInPhoto(checkInId: string, photoId: string) {
   await deleteHoldingPhoto(photo.url);
   await prisma.holdingCheckInPhoto.delete({ where: { id: photoId } });
   revalidatePath(`/holdings/${checkIn.holdingId}`);
+}
+
+const coordsSchema = z.object({ lat: z.number().min(-90).max(90), lng: z.number().min(-180).max(180) });
+
+// Called directly from a client event handler (not a <form>), with the
+// browser's own geolocation reading — not stored, per the deliberate
+// decision not to keep raw device coordinates (see the schema comment on
+// HoldingCheckIn.verified). Only the pass/fail boolean survives. An honesty
+// nudge, not proof: not tamper-proof, and the tolerance is generous because
+// city-level geocoding can legitimately be tens of km off (see geocode.ts).
+export async function verifyCheckInLocation(
+  checkInId: string,
+  deviceLat: number,
+  deviceLng: number
+): Promise<VerifyLocationResult> {
+  const user = await requireAppUser("/my-pins");
+  const checkIn = await getOwnedCheckIn(checkInId, user.id);
+  if (!checkIn) {
+    return { status: "error", message: "That's not your check-in." };
+  }
+
+  const parsed = coordsSchema.safeParse({ lat: deviceLat, lng: deviceLng });
+  if (!parsed.success) {
+    return { status: "error", message: "Location couldn't be verified." };
+  }
+
+  const distanceKm = haversineDistanceKm(parsed.data.lat, parsed.data.lng, checkIn.lat, checkIn.lng);
+  if (distanceKm > VERIFY_TOLERANCE_KM) {
+    return {
+      status: "error",
+      message: `That doesn't look like it's near ${checkIn.placeLabel} — leaving this unverified.`,
+    };
+  }
+
+  await prisma.holdingCheckIn.update({ where: { id: checkInId }, data: { verified: true } });
+  revalidatePath(`/holdings/${checkIn.holdingId}`);
+  return { status: "ok" };
 }
 
 // Deletes the whole location entry — its note and photos (storage objects

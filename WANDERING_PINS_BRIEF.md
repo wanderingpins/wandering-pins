@@ -204,6 +204,7 @@ One row per person-per-stint-with-a-pin. This table renders the public page.
 | `lat`, `lng` | **coarse — city centroid, never precise** |
 | `released_at` | nullable; null means they still have it |
 | `pending` | boolean, default false — see below. The one field on this table that is **not** public |
+| `verified` | boolean, default false — the holder confirmed their device's GPS was near `lat`/`lng` at check time (section 6.6). Public; the device coordinates themselves are never stored |
 
 Constraints: at most one holding per pin with `released_at IS NULL AND pending = false` (the real
 current owner), and separately, at most one holding per pin with `released_at IS NULL AND pending =
@@ -229,6 +230,7 @@ on a trip through three cities before finally trading it away. Public, same disc
 | `logged_at` | date the pin was at this place |
 | `place_label` | derived city string, same shape as `pin_holdings.place_label` |
 | `lat`, `lng` | **coarse — city centroid, never precise** |
+| `verified` | boolean, default false — same idea as `pin_holdings.verified` (section 6.6) |
 
 Renders as an additional line in the public timeline/map, interleaved chronologically with the
 holding's own acquisition line and any other holdings on the same pin. Only creatable against a real
@@ -269,13 +271,21 @@ Photos still do real work even while private: they are what actually ties a code
 physical object for its owner, and they are the record if a dispute ever arises. They are just not
 public.
 
-### `pin_titles` — private
+### `pin_titles` — the current holder's public presentation
 
 | field | notes |
 |---|---|
-| `id`, `holding_id`, `title` | |
+| `id`, `holding_id`, `title` | what the holder calls this pin |
+| `description` | nullable — a longer public description of the pin |
 
-What the holder calls this pin. Private, because it is free-typed. See section 7.
+Despite the section header inherited from the original design (where this was private, being
+free-typed), both `title` and `description` are now **public** — a deliberate, narrow exception to
+section 7's general rule, by explicit user decision, exactly like the current holder's front photo.
+Visible only for the current open holding; a closed holding's title/description stop showing on the
+public page the moment it's released, though the holder who set them still sees them on their own
+private holding page forever. `title` stays required at the schema level for backward compatibility —
+a description-only row stores `title: ""`, which the display layer already treats the same as no
+title at all ("Untitled Pin").
 
 There is no `trades` table. Releasing a pin has no recipient to record (section 6.4) — the current
 holder just closes their own holding, and whoever finds the pin later opens a fresh one for
@@ -370,7 +380,24 @@ happened there, and up to 5 private photos. See `holding_check_ins` in section 5
 The place and date join the public map/timeline as an additional line, interleaved chronologically
 with every holding's own acquisition line; the description and photos never do (section 7).
 
-### 6.6 My pins
+### 6.6 Verify a location
+
+Authenticated, scoped to your own holding or check-in (any of them — open, closed, or a past
+check-in — ownership is the only gate). Next to a location's line on the public pin page, an owner
+sees a "Not verified" button; anyone else just sees the same word as plain text, unclickable. Clicking
+it asks the browser for the device's current GPS position and checks it against that line's already-
+geocoded `lat`/`lng` within a generous tolerance (tens of km — see `src/lib/geo-distance.ts`; city-
+level geocoding is not precise, and this is an honesty nudge, not a geofence). Close enough flips
+`verified` to true, visible to everyone from then on as "✅ Location verified." Too far, or the
+browser can't get a location at all (denied permission, unsupported, timed out), leaves it exactly as
+"Not verified" with an inline error explaining why, so the owner can just try again.
+
+**The raw device coordinates are never stored anywhere** — only the resulting true/false. This is
+not tamper-proof (devtools and GPS-spoofing can fake a browser's reported position) and isn't meant to
+be; it's a lightweight signal that the holder was actually where they said, not a certified claim.
+See section 1's "not a provenance system" framing — verification follows the same spirit.
+
+### 6.7 My pins
 
 Authenticated. Three views off one page:
 
@@ -382,13 +409,13 @@ Authenticated. Three views off one page:
   "what happened to it next" moment is a core part of the appeal — make it prominent rather than
   burying it.
 
-### 6.7 Private notes and photos
+### 6.8 Private notes and photos
 
 Authenticated, scoped to one of your own holdings. Add and edit a blurb, a title, and photos.
 Visible only to you. Make the privacy obvious in the UI — a small persistent "only you can see this"
 affordance, not a one-time tooltip.
 
-### 6.8 Account settings
+### 6.9 Account settings
 
 Authenticated, self-only — there is no public profile page for viewing *other* users' settings, just
 this one page for editing your own. Two independent forms:
@@ -411,10 +438,21 @@ This section is a hard boundary. Do not soften it without an explicit product de
 
 - Its confirmed (non-pending) holdings: acquisition method, coarse city, date
 - Its check-ins: coarse city, date (section 6.5) — never the description or photos
+- Whether a holding or check-in's location is verified (section 6.6) — never the device coordinates
+  used to check it, which are never stored at all
 - Holder usernames, subject to `show_name_publicly`
 
-That is the complete list, and every item is **structured** — chosen from an enum, derived from a
-geocoder, or a date. **No user-typed text and no user-uploaded images appear on any public page.**
+Every item above is **structured** — chosen from an enum, derived from a geocoder, or a date — with
+three deliberate, narrow, explicit exceptions, all scoped to the **current open holding only** and
+gone the moment it's released:
+
+- The current holder's **title** and **description** (`pin_titles`, section 5) — free-typed text,
+  by explicit user decision.
+- The current holder's **front photo** (`holding_photos` where `kind = FRONT`) — a user-uploaded
+  image, same decision.
+
+Nothing else free-typed or user-uploaded ever appears on a public page — everything in
+`holding_notes`, every other photo, and every check-in's description/photos stay private always.
 
 The pin's slug itself is **no longer rendered as text on `/p/{slug}`**, for anyone — reverses the
 original design, which listed it as public. It still has to appear in the URL to reach the page at
@@ -423,7 +461,9 @@ looking at it. You still see your own pin's code on My Pins and its private hold
 
 ### Private — visible only to the person who wrote it
 
-- Notes, titles, photos, check-in descriptions, check-in photos
+- Notes, photos, check-in descriptions, check-in photos — and a closed holding's title/description,
+  once it's no longer the current one (still visible to the holder who wrote them, on their own
+  private holding page, forever)
 - A pending (tentative) holding, in full — not just its free-typed fields. It doesn't exist on the
   public page at all until it's confirmed (section 6.3).
 
@@ -437,22 +477,29 @@ a human actioning reports — from day one, not later.
 By keeping every public field structured, v1 has **no moderation surface at all.** That is worth
 more than a prettier page.
 
-### The known cost
+### The known cost — and the exception actually taken
 
-The public page has no picture of the pin and no name for it. A stranger sees a journey, not an
-object. This is a real loss and it is accepted deliberately.
+v1 shipped with the public page showing no picture of the pin and no name for it — a stranger saw a
+journey, not an object. That loss was accepted deliberately, but not permanently: by explicit,
+repeated user decision, the current holder's title, description, and front photo are now the
+exception to this whole section, accepted **without** the four prerequisites below being built
+first. This is a real, knowing risk acceptance, not an oversight — flagged here so a future session
+doesn't "fix" it back to private, and doesn't assume the prerequisites exist just because the
+exception does.
 
-### What v2 would need before this can change
+Check-in descriptions/photos and everything in `holding_notes` were **not** given the same
+exception — they stayed private specifically because no moderation surface exists yet (see "Photo
+content moderation" in `HANDOFF.md`'s Future Ideas). If that ever gets built, extending the same
+public exception to them would be the natural next step.
 
-Do not enable public photos or public free text until all of the following exist:
+### What full public photos/free text (beyond the current narrow exception) would need
+
+Do not extend the public surface any further until all of the following exist:
 
 1. Automated screening on upload (NSFW and CSAM detection) with hard-fail on positives
 2. A report button on every public page, and an unpublish action that takes effect immediately
 3. A named person responsible for actioning reports, with a response-time target
 4. A retention and takedown policy that survives the uploader deleting their account
-
-Promoting the title to public is much lower risk than photos and is a reasonable first step once
-items 2 and 3 exist.
 
 ---
 
@@ -460,6 +507,9 @@ items 2 and 3 exist.
 
 - Store and display **city-level** locations only. Never publish precise coordinates, even if the
   browser offers them. Snap to a city centroid before storing, not at render time.
+- **Never store the device coordinates used to verify a location** (section 6.6) — only the
+  resulting true/false. The whole point of asking the browser for a precise position there is to
+  compare it in memory and discard it, not to add another place precise coordinates could leak from.
 - **Strip EXIF on upload.** Phone photos embed GPS. Even though photos are private in v1, do not
   keep coordinates you have promised not to expose.
 - Show usernames, never email addresses. Honour `show_name_publicly`, falling back to "a

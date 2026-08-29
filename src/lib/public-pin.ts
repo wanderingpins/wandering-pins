@@ -15,6 +15,7 @@ export type PublicHolding = {
   lat: number;
   lng: number;
   isOpen: boolean;
+  verified: boolean;
 };
 
 type HoldingLike = {
@@ -24,6 +25,7 @@ type HoldingLike = {
   lat: number;
   lng: number;
   releasedAt: Date | null;
+  verified: boolean;
   user: { username: string | null; showNamePublicly: boolean };
 };
 
@@ -36,6 +38,7 @@ export function toPublicHolding(holding: HoldingLike): PublicHolding {
     lat: holding.lat,
     lng: holding.lng,
     isOpen: holding.releasedAt === null,
+    verified: holding.verified,
   };
 }
 
@@ -48,6 +51,7 @@ export type PublicCheckIn = {
   holderDisplayName: string;
   lat: number;
   lng: number;
+  verified: boolean;
 };
 
 type CheckInLike = {
@@ -55,6 +59,7 @@ type CheckInLike = {
   placeLabel: string;
   lat: number;
   lng: number;
+  verified: boolean;
   holder: { username: string | null; showNamePublicly: boolean };
 };
 
@@ -65,5 +70,6 @@ export function toPublicCheckIn(checkIn: CheckInLike): PublicCheckIn {
     holderDisplayName: resolveHolderDisplayName(checkIn.holder),
     lat: checkIn.lat,
     lng: checkIn.lng,
+    verified: checkIn.verified,
   };
 }

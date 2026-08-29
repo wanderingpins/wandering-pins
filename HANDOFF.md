@@ -1,6 +1,6 @@
 # Wandering Pins — handoff notes
 
-Status as of 2026-08-29: v1 built per WANDERING_PINS_BRIEF.md, deployed, and live at wanderingpins.com. Since the initial build: added user profiles/auth, replaced addressed trades with unaddressed release, added camera-based QR scanning to pin lookup, added camera capture/crop/size-limits to holding photos, settled the physical sticker sheet's design, made the current holder's title and front photo public on the pin journey page (explicit user decision, loosening a brief-section-7 guarantee) while keeping notes permanently private, closed a real `rls_disabled_in_public` gap on every table, added timeouts around every Supabase Auth network call (middleware session-refresh, sign-in, and confirmation-link exchange) so a degraded Auth API can no longer stall the whole site or hang a sign-in attempt, made `/my-pins` rows show a photo/acquisition/current-location summary instead of just a name and date, let a holder log that a pin moved to a new location without releasing it (private photos/description, public place/date), let someone tentatively claim a still-held pin (invisible on the public page until the real holder releases, then auto-promotes), stopped rendering the pin's raw code as text on its public journey page, added inline "add details" (notes + photos) directly on the pin journey page next to each timeline line you own, replacing the old go-to-a-different-page edit flow, and gave the pin's own public photo a dedicated top-of-page control instead of nesting it under the first acquisition line. See "Since v1" and "Since v1 continued" below for details, "Known open items" for what's still open, and "Future ideas" for what's discussed but not started. A new Claude Code session opened in this folder should read this file first, then the brief (which is kept in sync with current behavior, not historical).
+Status as of 2026-08-29: v1 built per WANDERING_PINS_BRIEF.md, deployed, and live at wanderingpins.com. Since the initial build: added user profiles/auth, replaced addressed trades with unaddressed release, added camera-based QR scanning to pin lookup, added camera capture/crop/size-limits to holding photos, settled the physical sticker sheet's design, made the current holder's title and front photo public on the pin journey page (explicit user decision, loosening a brief-section-7 guarantee) while keeping notes permanently private, closed a real `rls_disabled_in_public` gap on every table, added timeouts around every Supabase Auth network call (middleware session-refresh, sign-in, and confirmation-link exchange) so a degraded Auth API can no longer stall the whole site or hang a sign-in attempt, made `/my-pins` rows show a photo/acquisition/current-location summary instead of just a name and date, let a holder log that a pin moved to a new location without releasing it (private photos/description, public place/date), let someone tentatively claim a still-held pin (invisible on the public page until the real holder releases, then auto-promotes), stopped rendering the pin's raw code as text on its public journey page, added inline "add details" (notes + photos) directly on the pin journey page next to each timeline line you own, replacing the old go-to-a-different-page edit flow, gave the pin's own public photo a dedicated top-of-page control instead of nesting it under the first acquisition line, let a location's owner verify it against their device's actual GPS position (public verified/not-verified status, device coordinates never stored), and added a public pin description right under the pin photo, editable the same "shows a placeholder, click Edit" way. See "Since v1" and "Since v1 continued" below for details, "Known open items" for what's still open, and "Future ideas" for what's discussed but not started. A new Claude Code session opened in this folder should read this file first, then the brief (which is kept in sync with current behavior, not historical).
 
 ## Since v1 (2026-08-08)
 
@@ -252,6 +252,76 @@ all clean.
 
 Pushed to `main` in commit `85cc725` — deployed via the usual Vercel auto-deploy.
 
+## Since v1 continued (2026-08-29), part 8
+
+**Location verification — the "Future ideas" item from part 7 above, now built,** following the
+recommendations already written down there: generous tolerance, never store the raw device
+coordinates.
+
+- `pin_holdings` and `holding_check_ins` each gained a `verified` boolean (migration
+  `20260829204021_add_location_verification`), public like every other field on those tables. New
+  `src/lib/geo-distance.ts` (`haversineDistanceKm` + `VERIFY_TOLERANCE_KM = 50`, with its own unit
+  test) — 50km is deliberately generous, since city-level geocoding can legitimately be tens of km
+  off (see the geocoding deviation below).
+- New actions `verifyHoldingLocation`/`verifyCheckInLocation` (`src/app/holdings/[holdingId]/actions.ts`,
+  `checkin-actions.ts`) — called directly from a client `onClick` handler (not a `<form>`, since the
+  device coordinates come from the browser's Geolocation API, not form fields), Next.js supports
+  this the same way. Only ever writes the pass/fail boolean; the coordinates passed in are compared
+  in memory and never touch the database.
+- New `src/components/VerifyLocationButton.tsx`, wired into `PinJourneyTimeline`'s new `badge` slot
+  (next to a line's text, not below it like `action`) via `/p/[slug]/page.tsx`: "✅ Location
+  verified" once set (visible to anyone), a clickable "Not verified" button for that line's owner
+  otherwise, or the same word as unclickable plain text for anyone else. A failed check (too far, or
+  the browser couldn't get a location at all — denied/unsupported/timed out) leaves it "Not
+  verified" with an inline reason, exactly as specified — nothing is stored on failure either way.
+- Verified live end-to-end by mocking `navigator.geolocation.getCurrentPosition` in the browser
+  (this repo has no way to fake real GPS otherwise): a nearby coordinate verifies successfully and
+  survives a reload; a far-away one leaves it unverified with the "doesn't look like it's near…"
+  message; a simulated permission-denial leaves it unverified with the browser-permission message;
+  a logged-out/non-owner view shows both statuses as plain text with zero buttons on the page.
+- Hit one real snag along the way, not a bug in this feature: the long-running local dev server had
+  a stale in-memory Prisma Client from before this session's schema changes, so the first live
+  attempt failed with `Unknown argument \`verified\`` even though `tsc`/tests were clean — restarting
+  the dev server (not just re-running `prisma generate`, which had already been done) picked up the
+  regenerated client. Worth remembering if a freshly-added column ever looks "unknown" to Prisma
+  despite the schema and generated client both being correct.
+- `WANDERING_PINS_BRIEF.md` updated: section 5 (both tables' new field), a new section 6.6 "Verify a
+  location" (renumbering the old 6.6–6.8 to 6.7–6.9), section 7's public list, and section 8's
+  privacy rules (never store the device coordinates). `tsc`, `eslint`, and the full test suite (76
+  tests, +3 for `geo-distance.test.ts`) all clean.
+
+Pushed to `main` in commit `<pending part 8>` — deployed via the usual Vercel auto-deploy once pushed.
+
+## Since v1 continued (2026-08-29), part 9
+
+**A public pin description, right under the pin photo** — a third narrow exception alongside title
+and front photo (brief section 7), by explicit user decision (asked directly, not a default).
+
+- `pin_titles` gained a nullable `description` column (migration `20260829205618_add_pin_description`)
+  — kept on the existing `PinTitle` model rather than a new table, since both fields are "the
+  current holder's public presentation of the pin." `title` stays required for backward
+  compatibility; a description-only row stores `title: ""`, already treated as "no title" by the
+  display layer. New narrow action `updateDescription` (mirrors `updateHoldingNote`'s "don't clobber
+  the sibling field" shape) — touches only `description`, never `title`.
+- New `src/components/PinDescriptionWidget.tsx`, same view/edit toggle pattern as everything else
+  built this session: "No description" + an "Edit" button when collapsed and empty, the saved text
+  directly visible (no "No description" placeholder, no Edit button) for a non-owner viewer, a
+  textarea + Save/Cancel when editing. Only rendered for the current holder — same page-level
+  branch as `PinPhotoWidget` right above it.
+- While in `WANDERING_PINS_BRIEF.md` for this, also **fixed a real, pre-existing staleness**: section
+  7 still read as if title/front-photo were never made public (a gap from the 2026-08-10 change that
+  was never reflected there), and "The known cost"/"What v2 would need" still described v1's
+  original all-private stance as current. Rewrote both to state plainly that title, description, and
+  front photo are a deliberate, knowing exception taken *without* the four moderation prerequisites
+  — not an oversight, and not proof those prerequisites exist.
+- Verified live end-to-end (register a pin, confirm "No description" + Edit shows right after the
+  empty photo placeholder, save a description, confirm it persists on reload, sign out and confirm a
+  visitor sees the plain text with no owner controls), cleaned up afterward. Hit the same dev-server-
+  needs-a-restart snag as part 8 (stale in-memory Prisma Client) — same fix, already know to expect
+  it now. `tsc`, `eslint`, and the full test suite (76 tests, unchanged) all clean.
+
+Pushed to `main` in commit `<pending part 9>` — deployed via the usual Vercel auto-deploy once pushed.
+
 ## Future ideas (not started, not committed to)
 
 - **Photo content moderation** (porn/violence filtering) before a photo is accepted — now relevant
@@ -261,7 +331,6 @@ Pushed to `main` in commit `85cc725` — deployed via the usual Vercel auto-depl
   free tier recurs monthly, not just for a year) were compared — both cheap at this app's likely
   volume. Not started; needs a new cloud account + credentials either way, which is why it wasn't
   just wired in.
-- **Location "verification"** via the browser's Geolocation API: type a place in as today (shows "Unverified"), then a "Verify" button captures the device's actual GPS coordinates and checks them against the place's already-geocoded lat/lng within some distance tolerance, marking the entry "Verified" if it's close enough. Technically feasible with no new paid service, but worth going in with eyes open: city-level geocoding can legitimately be tens of km off from a specific spot, so the tolerance has to be generous (weakening how much "verified" really proves); it only makes sense to prompt for location *at the moment of logging*, not after the fact; and it's not tamper-proof (devtools/GPS-spoofing can fake it) — more an honesty nudge than a hard guarantee. Recommend never storing the raw device coordinates themselves (only the resulting verified/not-verified flag), since that's a more sensitive category of data than anything stored today. Not started.
 
 ## Live setup
 

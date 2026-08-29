@@ -11,6 +11,10 @@ import { PinJourneyMap } from "@/components/PinJourneyMap";
 import { InlineHoldingDetails } from "@/components/InlineHoldingDetails";
 import { InlineCheckInDetails } from "@/components/InlineCheckInDetails";
 import { PinPhotoWidget } from "@/components/PinPhotoWidget";
+import { PinDescriptionWidget } from "@/components/PinDescriptionWidget";
+import { VerifyLocationButton } from "@/components/VerifyLocationButton";
+import { verifyHoldingLocation } from "@/app/holdings/[holdingId]/actions";
+import { verifyCheckInLocation } from "@/app/holdings/[holdingId]/checkin-actions";
 
 // Zod boundary for the raw route param — brief section 10 ("Zod at every
 // input boundary, including the slug parser"). This just guards the shape;
@@ -95,12 +99,14 @@ export default async function PinPage({ params }: Props) {
   const isCurrentHolder = !!claims && claims.sub === openHolding?.userId;
   const ownPendingHolding = claims ? pin.holdings.find((h) => h.pending && h.userId === claims.sub) : undefined;
 
-  // Title and (front) photo are a deliberate, narrow exception to "no
-  // user-typed text or user-uploaded image on a public page" (brief section
-  // 7) — the current holder chose to make these two fields public. They're
-  // public ONLY for the current open holding, and only the front photo;
-  // back/other photos and everything in HoldingNote stay private always.
+  // Title, description, and (front) photo are a deliberate, narrow
+  // exception to "no user-typed text or user-uploaded image on a public
+  // page" (brief section 7) — the current holder chose to make these
+  // public. They're public ONLY for the current open holding, and only the
+  // front photo; back/other photos and everything in HoldingNote stay
+  // private always.
   const publicTitle = openHolding?.title?.title.trim() || "Untitled Pin";
+  const publicDescription = openHolding?.title?.description?.trim() || "";
   const frontPhotoId = openHolding?.photos.find((p) => p.kind === "FRONT")?.id;
   const hasPublicPhoto = !!frontPhotoId;
 
@@ -138,6 +144,9 @@ export default async function PinPage({ params }: Props) {
       return {
         key: `holding-${row.id}`,
         text: row.line,
+        badge: (
+          <VerifyLocationButton verified={h.verified} isOwn={isOwn} onVerify={verifyHoldingLocation.bind(null, h.id)} />
+        ),
         action: isOwn ? (
           <InlineHoldingDetails
             holdingId={h.id}
@@ -156,6 +165,13 @@ export default async function PinPage({ params }: Props) {
     return {
       key: `checkin-${row.id}`,
       text: row.line,
+      badge: (
+        <VerifyLocationButton
+          verified={checkIn.verified}
+          isOwn={isOwn}
+          onVerify={verifyCheckInLocation.bind(null, checkIn.id)}
+        />
+      ),
       action: isOwn ? (
         <InlineCheckInDetails
           checkInId={checkIn.id}
@@ -189,6 +205,12 @@ export default async function PinPage({ params }: Props) {
             />
           </div>
         )
+      )}
+
+      {isCurrentHolder ? (
+        <PinDescriptionWidget holdingId={openHolding!.id} initialDescription={publicDescription} />
+      ) : (
+        publicDescription && <p className="mt-4 whitespace-pre-wrap text-sm text-neutral-800">{publicDescription}</p>
       )}
 
       <div className="mt-6">
