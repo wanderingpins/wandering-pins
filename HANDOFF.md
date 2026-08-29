@@ -423,6 +423,10 @@ visible and "Sign in to claim" in place of the claim button. One real UX bug cau
 and fixed before commit: the claim and unclaim buttons both read "I have this," which is ambiguous
 out of visual context — the unclaim button now reads "✓ Remove my claim."
 
+Pushed to `main` in commit `bd08c61` — deployed via the usual Vercel auto-deploy.
+`scripts/make-sticker-sheet.mjs`'s local changes (still the same ones from earlier in HANDOFF's
+history) were left out of this commit, deliberately, same as every other push so far.
+
 ## Future ideas (not started, not committed to)
 
 - **Photo content moderation** (porn/violence filtering) before a photo is accepted — now relevant
