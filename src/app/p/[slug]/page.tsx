@@ -185,12 +185,20 @@ export default async function PinPage({ params }: Props) {
         {isCurrentHolder ? (
           <>
             <p className="text-sm text-neutral-700">This pin is currently in your hands.</p>
-            <Link
-              href={`/trade/${parsed.slug}`}
-              className="mt-2 inline-block rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
-            >
-              Log a trade
-            </Link>
+            <div className="mt-2 flex flex-wrap gap-2">
+              <Link
+                href={`/holdings/${openHolding!.id}#locations`}
+                className="inline-block rounded-md border border-neutral-300 px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
+              >
+                Log a new location
+              </Link>
+              <Link
+                href={`/trade/${parsed.slug}`}
+                className="inline-block rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+              >
+                Log a trade
+              </Link>
+            </div>
           </>
         ) : ownPendingHolding ? (
           <p className="text-sm text-neutral-700">

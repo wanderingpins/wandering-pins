@@ -115,7 +115,7 @@ export default async function HoldingPage({ params }: Props) {
         </div>
       </section>
 
-      <section className="mt-10">
+      <section id="locations" className="mt-10 scroll-mt-6">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-500">Locations</h2>
         <p className="mt-2 text-xs text-neutral-500">
           🌐 The place and date of each entry are public, same as where you got it. Photos and descriptions here
