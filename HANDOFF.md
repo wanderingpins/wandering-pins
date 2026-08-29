@@ -69,7 +69,7 @@ Pushed to `main` in commit `ca36e8d` — deployed via the usual Vercel auto-depl
 
 Verified: full test suite (including the two new `with-timeout.test.ts` cases) plus `tsc --noEmit` and `eslint .` all clean. Not verified live against an actual Supabase slowdown (nothing to point it at on demand) — logic mirrors the already-incident-tested middleware timeout, just at a longer duration and with a user-visible outcome instead of a silent skip.
 
-Pushed to `main` in commit `<pending>` — deployed via the usual Vercel auto-deploy once pushed.
+Pushed to `main` in commit `185855f` — deployed via the usual Vercel auto-deploy.
 
 ## Future ideas (not started, not committed to)
 
