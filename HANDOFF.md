@@ -213,6 +213,8 @@ notes textarea + photo upload in place; Save collapses it back down.
   the throwaway pin/account. `tsc`, `eslint`, and the full test suite (73 tests, unchanged — this
   was UI wiring over already-tested actions, not new pure logic) all clean.
 
+Pushed to `main` in commit `7c5f426` — deployed via the usual Vercel auto-deploy.
+
 ## Future ideas (not started, not committed to)
 
 - **Photo content moderation** (porn/violence filtering) before a photo is accepted — now relevant
