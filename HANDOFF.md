@@ -73,8 +73,11 @@ Pushed to `main` in commit `185855f` — deployed via the usual Vercel auto-depl
 
 ## Since v1 continued (2026-08-29), part 4
 
-Three related changes to the pin page, landed together — see the conversation for the clarifying
-questions that settled the ambiguous parts before any code was written.
+Three related changes to the pin page, landed together. Several ambiguous product calls were
+confirmed before writing any code (check-in place/date public vs. private, check-in photos private
+until a moderation filter exists, one-pending-claim-at-a-time with auto-promotion on release, and
+hiding the slug from everyone rather than just logged-out visitors) — the outcomes are reflected in
+the bullets below and in the code itself; the original back-and-forth isn't preserved anywhere.
 
 **Location check-ins.** A holder can now log that their pin moved to a new place without releasing
 it — a mini-timeline within one holding, the "Future ideas" item from part 2 above, now built.
@@ -290,7 +293,7 @@ coordinates.
   privacy rules (never store the device coordinates). `tsc`, `eslint`, and the full test suite (76
   tests, +3 for `geo-distance.test.ts`) all clean.
 
-Pushed to `main` in commit `43cfc72` — deployed via the usual Vercel auto-deploy once pushed.
+Pushed to `main` in commit `43cfc72` — deployed via the usual Vercel auto-deploy.
 
 ## Since v1 continued (2026-08-29), part 9
 
@@ -320,7 +323,7 @@ and front photo (brief section 7), by explicit user decision (asked directly, no
   needs-a-restart snag as part 8 (stale in-memory Prisma Client) — same fix, already know to expect
   it now. `tsc`, `eslint`, and the full test suite (76 tests, unchanged) all clean.
 
-Pushed to `main` in commit `43cfc72` — deployed via the usual Vercel auto-deploy once pushed.
+Pushed to `main` in commit `43cfc72` — deployed via the usual Vercel auto-deploy.
 
 ## Future ideas (not started, not committed to)
 
@@ -359,6 +362,7 @@ The brief got some things right in principle but wrong in a couple of real-world
 - `npx tsx --env-file=.env scripts/gen-test-link.ts [email]` — mint a real Supabase session token via the admin API, for testing auth-gated flows without an inbox round-trip. For a brand-new email this is a signup token (`type=signup`), not `magiclink` — use whichever `type` the script's own output reports. Since onboarding shipped, a fresh account landing anywhere via `/auth/confirm` gets redirected to `/onboarding` first (pick a username + password) before reaching wherever `next` pointed — that's expected, not a bug.
 - If testing locally with two accounts side by side in the Browser pane, remember tabs in the same browser instance **share one cookie jar** — signing in as a second user in a new tab silently switches the first tab's session too. Re-authenticate (fresh `gen-test-link.ts` token) whichever account you need to check next rather than assuming an old tab still reflects an old session.
 - When starting the local dev server (`npm run dev -- -p 3311`), check `netstat -ano | grep 3311` first — a stale process from an earlier session can linger and silently serve an old build (including one from a completely different Next.js project, if this port was reused). A crash citing an export that no longer exists in current source, or unexpected app content, means you're talking to a stale process — kill it (`taskkill //F //PID <pid> //T` on Windows) and restart clean.
+- **After adding a Prisma schema field/model, restart the dev server, not just `prisma generate`.** A long-running `next dev` process keeps its own in-memory copy of the generated Prisma Client from whenever it first started — running `prisma generate` again regenerates the files on disk, but the already-running process doesn't pick them up. Symptom: `PrismaClientValidationError: Unknown argument \`fieldName\`` on a field that genuinely exists in the schema and passes `tsc`/tests fine. Fix is just to stop and restart the dev server (hit this twice in one session adding `verified` and `description`, same cause both times).
 
 ## Known open items (not urgent)
 
@@ -370,4 +374,4 @@ The brief got some things right in principle but wrong in a couple of real-world
 
 ## Test coverage
 
-73 vitest tests (`npm test`), mix of pure-logic and live-integration (hits the real Supabase DB and MapTiler API — needs `.env` populated). `npx tsc --noEmit` and `npx eslint .` should both be clean before committing.
+76 vitest tests (`npm test`), mix of pure-logic and live-integration (hits the real Supabase DB and MapTiler API — needs `.env` populated). `npx tsc --noEmit` and `npx eslint .` should both be clean before committing.
