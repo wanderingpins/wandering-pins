@@ -173,7 +173,7 @@ the entire site, not just auth-gated flows.
   public pin page locally afterward with no regressions. Not verified against the live incident
   itself (no way to force it on demand) — logic mirrors the already-incident-tested middleware fix.
 
-Pushed to `main` in commit `<pending>` — deployed via the usual Vercel auto-deploy once pushed.
+Pushed to `main` in commit `56a9d16` — deployed via the usual Vercel auto-deploy.
 
 ## Future ideas (not started, not committed to)
 
