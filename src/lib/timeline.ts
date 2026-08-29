@@ -25,8 +25,12 @@ export function formatMonthYear(date: Date): string {
   return new Intl.DateTimeFormat("en-US", { month: "long", year: "numeric", timeZone: "UTC" }).format(date);
 }
 
+export function formatAcquisition(acquiredVia: AcquiredVia, placeLabel: string, acquiredAt: Date): string {
+  return `${VERB[acquiredVia]} in ${placeLabel} · ${formatMonthYear(acquiredAt)}`;
+}
+
 export function holdingToProse(holding: TimelineHolding): string {
-  return `${VERB[holding.acquiredVia]} in ${holding.placeLabel} · ${formatMonthYear(holding.acquiredAt)} · ${holding.holderDisplayName}`;
+  return `${formatAcquisition(holding.acquiredVia, holding.placeLabel, holding.acquiredAt)} · ${holding.holderDisplayName}`;
 }
 
 // Expects holdings already sorted ascending by acquiredAt (oldest first).
