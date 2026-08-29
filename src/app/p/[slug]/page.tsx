@@ -4,10 +4,12 @@ import { prisma } from "@/lib/prisma";
 import { parseSlug } from "@/lib/slug";
 import { getAuthClaims } from "@/lib/auth";
 import { BEST_EFFORT_AUTH_TIMEOUT_MS } from "@/lib/with-timeout";
-import { buildJourneyTimeline, formatMonthYear } from "@/lib/timeline";
+import { buildJourneyRows, resolveHolderDisplayName } from "@/lib/timeline";
 import { toPublicHolding, toPublicCheckIn } from "@/lib/public-pin";
-import { PinJourneyTimeline } from "@/components/PinJourneyTimeline";
+import { PinJourneyTimeline, type TimelineLine } from "@/components/PinJourneyTimeline";
 import { PinJourneyMap } from "@/components/PinJourneyMap";
+import { InlineHoldingDetails } from "@/components/InlineHoldingDetails";
+import { InlineCheckInDetails } from "@/components/InlineCheckInDetails";
 
 // Zod boundary for the raw route param — brief section 10 ("Zod at every
 // input boundary, including the slug parser"). This just guards the shape;
@@ -39,7 +41,7 @@ export default async function PinPage({ params }: Props) {
         // title/photos/note/checkIns are loaded here for convenience but
         // never touch toPublicHolding/toPublicCheckIn below — see the
         // dedicated public-title/photo section further down, and the
-        // private "Your notes"/"Your locations" sections, for the only
+        // inline per-row "add details" widgets (owner-gated), for the only
         // places these leave this file.
         include: {
           user: true,
@@ -70,7 +72,6 @@ export default async function PinPage({ params }: Props) {
   const publicCheckIns = confirmedHoldings.flatMap((h) =>
     h.checkIns.map((c) => toPublicCheckIn({ ...c, holder: h.user }))
   );
-  const lines = buildJourneyTimeline(publicHoldings, publicCheckIns);
   const points = [
     ...publicHoldings.map((h) => ({ at: h.acquiredAt, lat: h.lat, lng: h.lng, label: h.placeLabel })),
     ...publicCheckIns.map((c) => ({ at: c.loggedAt, lat: c.lat, lng: c.lng, label: c.placeLabel })),
@@ -87,8 +88,8 @@ export default async function PinPage({ params }: Props) {
   // Best-effort — this is the public funnel page, so a signed-in visitor's
   // stalled auth check must never stall the page itself. Failing open to
   // "anonymous" just means the CTA below defaults to "Claim this pin"
-  // instead of "Log a trade"/pending-claim messaging, and "Your notes"
-  // doesn't render, for this one request.
+  // instead of "Log a trade"/pending-claim messaging, and no inline "add
+  // details" widgets render, for this one request.
   const claims = await getAuthClaims(BEST_EFFORT_AUTH_TIMEOUT_MS);
   const isCurrentHolder = !!claims && claims.sub === openHolding?.userId;
   const ownPendingHolding = claims ? pin.holdings.find((h) => h.pending && h.userId === claims.sub) : undefined;
@@ -101,20 +102,64 @@ export default async function PinPage({ params }: Props) {
   const publicTitle = openHolding?.title?.title.trim() || "Untitled Pin";
   const hasPublicPhoto = !!openHolding?.photos.some((p) => p.kind === "FRONT");
 
-  // Notes are private to whoever wrote them, permanently — a holding row
-  // (and its note) is never deleted on release, so this still finds a past
-  // holder's own notes on a pin they no longer have.
-  const ownNotedHoldings = claims
-    ? pin.holdings.filter((h) => h.userId === claims.sub && h.note?.body)
-    : [];
-
-  // Same idea for check-ins: a viewer's own private description/photos on a
-  // location they logged, regardless of whether that holding is still open.
-  const ownCheckIns = claims
-    ? pin.holdings
-        .filter((h) => h.userId === claims.sub)
-        .flatMap((h) => h.checkIns.filter((c) => c.note?.body || c.photos.length > 0).map((c) => ({ ...c, holdingId: h.id })))
-    : [];
+  // Timeline rows carry an id (holding or check-in) alongside the prose line
+  // so an inline "add details" widget can be attached to the right one,
+  // gated to its owner — built by hand rather than through
+  // toPublicHolding/toPublicCheckIn (which deliberately don't carry an id,
+  // being the narrow public-safe boundary), but reading the exact same
+  // narrow set of fields those do, never a spread of the raw row.
+  const holdingById = new Map(confirmedHoldings.map((h) => [h.id, h]));
+  const checkInById = new Map(
+    confirmedHoldings.flatMap((h) => h.checkIns.map((c) => [c.id, { checkIn: c, holding: h }] as const))
+  );
+  const journeyRows = buildJourneyRows(
+    confirmedHoldings.map((h) => ({
+      id: h.id,
+      acquiredAt: h.acquiredAt,
+      acquiredVia: h.acquiredVia,
+      placeLabel: h.placeLabel,
+      holderDisplayName: resolveHolderDisplayName(h.user),
+    })),
+    confirmedHoldings.flatMap((h) =>
+      h.checkIns.map((c) => ({
+        id: c.id,
+        loggedAt: c.loggedAt,
+        placeLabel: c.placeLabel,
+        holderDisplayName: resolveHolderDisplayName(h.user),
+      }))
+    )
+  );
+  const timelineLines: TimelineLine[] = journeyRows.map((row) => {
+    if (row.kind === "holding") {
+      const h = holdingById.get(row.id)!;
+      const isOwn = claims?.sub === h.userId;
+      return {
+        key: `holding-${row.id}`,
+        text: row.line,
+        action: isOwn ? (
+          <InlineHoldingDetails
+            holdingId={h.id}
+            initialNotes={h.note?.body ?? ""}
+            photos={h.photos.map((p) => ({ id: p.id, kind: p.kind }))}
+            frontPhotoIsPublic={h.releasedAt === null}
+          />
+        ) : undefined,
+      };
+    }
+    const { checkIn, holding } = checkInById.get(row.id)!;
+    const isOwn = claims?.sub === holding.userId;
+    return {
+      key: `checkin-${row.id}`,
+      text: row.line,
+      action: isOwn ? (
+        <InlineCheckInDetails
+          checkInId={checkIn.id}
+          initialNotes={checkIn.note?.body ?? ""}
+          photos={checkIn.photos.map((p) => ({ id: p.id }))}
+        />
+      ) : undefined,
+    };
+  });
 
   return (
     <main className="mx-auto max-w-2xl px-4 py-10">
@@ -137,55 +182,8 @@ export default async function PinPage({ params }: Props) {
       </div>
 
       <div className="mt-8">
-        <PinJourneyTimeline lines={lines} />
+        <PinJourneyTimeline lines={timelineLines} />
       </div>
-
-      {ownNotedHoldings.length > 0 && (
-        <div className="mt-8">
-          <p className="inline-flex items-center gap-1.5 rounded-full bg-neutral-100 px-3 py-1 text-xs font-medium text-neutral-600">
-            🔒 Only you can see this
-          </p>
-          <h2 className="mt-2 text-sm font-semibold uppercase tracking-wide text-neutral-500">Your notes</h2>
-          <ul className="mt-3 space-y-4">
-            {ownNotedHoldings.map((h) => (
-              <li key={h.id} className="rounded-lg border border-neutral-200 p-4">
-                <p className="text-xs text-neutral-500">
-                  {formatMonthYear(h.acquiredAt)} – {h.releasedAt ? formatMonthYear(h.releasedAt) : "now"}
-                </p>
-                <p className="mt-1 whitespace-pre-wrap text-sm text-neutral-800">{h.note!.body}</p>
-                <Link href={`/holdings/${h.id}`} className="mt-2 inline-block text-sm text-blue-600 hover:underline">
-                  Edit
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      {ownCheckIns.length > 0 && (
-        <div className="mt-8">
-          <p className="inline-flex items-center gap-1.5 rounded-full bg-neutral-100 px-3 py-1 text-xs font-medium text-neutral-600">
-            🔒 Only you can see this
-          </p>
-          <h2 className="mt-2 text-sm font-semibold uppercase tracking-wide text-neutral-500">Your locations</h2>
-          <ul className="mt-3 space-y-4">
-            {ownCheckIns.map((c) => (
-              <li key={c.id} className="rounded-lg border border-neutral-200 p-4">
-                <p className="text-xs text-neutral-500">
-                  🌐 {c.placeLabel} · {formatMonthYear(c.loggedAt)}
-                </p>
-                {c.note?.body && <p className="mt-1 whitespace-pre-wrap text-sm text-neutral-800">{c.note.body}</p>}
-                <Link
-                  href={`/holdings/${c.holdingId}`}
-                  className="mt-2 inline-block text-sm text-blue-600 hover:underline"
-                >
-                  Edit
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
 
       <div className="mt-10 rounded-lg border border-neutral-200 p-4">
         {isCurrentHolder ? (

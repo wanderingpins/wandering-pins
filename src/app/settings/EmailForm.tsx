@@ -13,10 +13,14 @@ export function EmailForm({ currentEmail }: { currentEmail: string }) {
   // pattern for "respond to a value changing"). A successful request doesn't
   // change currentEmail yet (nothing does until the confirmation link is
   // clicked) — collapse back to the view either way, and let the pending
-  // notice below stand on its own regardless of editing state.
-  const [prevStatus, setPrevStatus] = useState(state.status);
-  if (state.status !== prevStatus) {
-    setPrevStatus(state.status);
+  // notice below stand on its own regardless of editing state. Compares the
+  // state *object* itself, not just its status string: requesting a second
+  // change still returns a fresh { status: "pending" } object, but the
+  // status string alone would look unchanged from the last render and
+  // never re-trigger the collapse.
+  const [prevState, setPrevState] = useState(state);
+  if (state !== prevState) {
+    setPrevState(state);
     if (state.status === "pending") setEditing(false);
   }
 

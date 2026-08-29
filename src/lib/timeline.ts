@@ -46,16 +46,26 @@ export function checkInToProse(checkIn: TimelineCheckIn): string {
   return `Spotted in ${checkIn.placeLabel} · ${formatMonthYear(checkIn.loggedAt)} · ${checkIn.holderDisplayName}`;
 }
 
+// One line in the journey, tagged with which row (holding or check-in) it
+// came from — callers that need to attach something to a specific line
+// (e.g. an inline "add details" affordance, gated to the row's owner) use
+// `id`/`kind` to look the row back up; callers that just want prose can
+// ignore both and read `line`.
+export type JourneyRow =
+  | { kind: "holding"; id: string; at: Date; line: string }
+  | { kind: "checkin"; id: string; at: Date; line: string };
+
 // Merges holding-acquisition events and check-in events into one
 // chronologically-ordered timeline (oldest first) — a holder can log that
 // a pin moved without releasing it, so the journey isn't just one line per
 // holding anymore.
-export function buildJourneyTimeline(holdings: TimelineHolding[], checkIns: TimelineCheckIn[]): string[] {
-  const holdingEvents = holdings.map((h) => ({ at: h.acquiredAt, line: holdingToProse(h) }));
-  const checkInEvents = checkIns.map((c) => ({ at: c.loggedAt, line: checkInToProse(c) }));
-  return [...holdingEvents, ...checkInEvents]
-    .sort((a, b) => a.at.getTime() - b.at.getTime())
-    .map((e) => e.line);
+export function buildJourneyRows(
+  holdings: (TimelineHolding & { id: string })[],
+  checkIns: (TimelineCheckIn & { id: string })[]
+): JourneyRow[] {
+  const holdingRows: JourneyRow[] = holdings.map((h) => ({ kind: "holding", id: h.id, at: h.acquiredAt, line: holdingToProse(h) }));
+  const checkInRows: JourneyRow[] = checkIns.map((c) => ({ kind: "checkin", id: c.id, at: c.loggedAt, line: checkInToProse(c) }));
+  return [...holdingRows, ...checkInRows].sort((a, b) => a.at.getTime() - b.at.getTime());
 }
 
 // username is guaranteed non-null for anyone who's ever held a pin — holding

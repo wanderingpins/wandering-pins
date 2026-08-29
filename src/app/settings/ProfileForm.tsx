@@ -21,10 +21,14 @@ export function ProfileForm({
   // pattern for "respond to a value changing"). A successful save means the
   // props above already reflect the new values (revalidatePath re-renders
   // the server-rendered page) — drop back to the read-only view rather than
-  // leaving the form open with a "Saved." aside.
-  const [prevStatus, setPrevStatus] = useState(state.status);
-  if (state.status !== prevStatus) {
-    setPrevStatus(state.status);
+  // leaving the form open with a "Saved." aside. Compares the state
+  // *object* itself, not just its status string: editing again and saving
+  // a second time still returns a fresh { status: "ok" } object, but the
+  // status string alone would look unchanged from the last render and
+  // never re-trigger the collapse.
+  const [prevState, setPrevState] = useState(state);
+  if (state !== prevState) {
+    setPrevState(state);
     if (state.status === "ok") setEditing(false);
   }
 

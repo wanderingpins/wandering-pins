@@ -53,6 +53,36 @@ export async function updateHoldingDetails(
   return { status: "ok" };
 }
 
+// Narrower than updateHoldingDetails above — touches only the note's free-
+// typed body, leaving title and any release date/place alone. Used by the
+// inline "add details" widget on the public pin page (src/components/
+// InlineHoldingDetails.tsx), which only ever shows a notes textarea, not
+// the full holdings-page form — submitting it must not silently wipe a
+// title or release info the holder set elsewhere.
+export async function updateHoldingNote(holdingId: string, _prevState: ActionState, formData: FormData): Promise<ActionState> {
+  const user = await requireAppUser(`/holdings/${holdingId}`);
+  const holding = await getOwnedHolding(holdingId, user.id);
+  if (!holding) {
+    return { status: "error", message: "That's not your holding." };
+  }
+
+  const body = (formData.get("notes") as string | null)?.trim() ?? "";
+  const existing = await prisma.holdingNote.findUnique({ where: { holdingId } });
+
+  if (body) {
+    await prisma.holdingNote.upsert({ where: { holdingId }, update: { body }, create: { holdingId, body } });
+  } else if (existing?.releaseDate || existing?.releasePlaceLabel) {
+    // Keep the row for its release date/place — just clear the free-typed
+    // body rather than deleting the whole note.
+    await prisma.holdingNote.update({ where: { holdingId }, data: { body: "" } });
+  } else {
+    await prisma.holdingNote.deleteMany({ where: { holdingId } });
+  }
+
+  revalidatePath(`/holdings/${holdingId}`);
+  return { status: "ok" };
+}
+
 const kindSchema = z.enum(["FRONT", "BACK", "OTHER"]);
 
 export async function uploadPhoto(holdingId: string, _prevState: ActionState, formData: FormData): Promise<ActionState> {

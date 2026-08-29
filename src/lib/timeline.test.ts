@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildJourneyTimeline, checkInToProse, formatMonthYear, holdingToProse, resolveHolderDisplayName } from "./timeline";
+import { buildJourneyRows, checkInToProse, formatMonthYear, holdingToProse, resolveHolderDisplayName } from "./timeline";
 
 describe("formatMonthYear", () => {
   it("formats as 'Month YYYY'", () => {
@@ -48,33 +48,38 @@ describe("checkInToProse", () => {
   });
 });
 
-describe("buildJourneyTimeline", () => {
-  it("renders one line per holding in the given order when there are no check-ins", () => {
-    const lines = buildJourneyTimeline(
+describe("buildJourneyRows", () => {
+  it("renders one row per holding in the given order when there are no check-ins", () => {
+    const rows = buildJourneyRows(
       [
-        { acquiredAt: new Date(Date.UTC(2024, 2, 1)), acquiredVia: "BOUGHT", placeLabel: "Orlando, FL", holderDisplayName: "Tim" },
-        { acquiredAt: new Date(Date.UTC(2024, 5, 1)), acquiredVia: "TRADED", placeLabel: "Denver, CO", holderDisplayName: "Sarah" },
+        { id: "h1", acquiredAt: new Date(Date.UTC(2024, 2, 1)), acquiredVia: "BOUGHT", placeLabel: "Orlando, FL", holderDisplayName: "Tim" },
+        { id: "h2", acquiredAt: new Date(Date.UTC(2024, 5, 1)), acquiredVia: "TRADED", placeLabel: "Denver, CO", holderDisplayName: "Sarah" },
       ],
       []
     );
-    expect(lines).toEqual([
-      "Bought in Orlando, FL · March 2024 · Tim",
-      "Traded in Denver, CO · June 2024 · Sarah",
+    expect(rows).toEqual([
+      { kind: "holding", id: "h1", at: new Date(Date.UTC(2024, 2, 1)), line: "Bought in Orlando, FL · March 2024 · Tim" },
+      { kind: "holding", id: "h2", at: new Date(Date.UTC(2024, 5, 1)), line: "Traded in Denver, CO · June 2024 · Sarah" },
     ]);
   });
 
   it("interleaves check-ins with holdings in chronological order, regardless of input order", () => {
-    const lines = buildJourneyTimeline(
+    const rows = buildJourneyRows(
       [
-        { acquiredAt: new Date(Date.UTC(2024, 2, 1)), acquiredVia: "BOUGHT", placeLabel: "Orlando, FL", holderDisplayName: "Tim" },
-        { acquiredAt: new Date(Date.UTC(2024, 8, 1)), acquiredVia: "TRADED", placeLabel: "Seattle, WA", holderDisplayName: "Sarah" },
+        { id: "h1", acquiredAt: new Date(Date.UTC(2024, 2, 1)), acquiredVia: "BOUGHT", placeLabel: "Orlando, FL", holderDisplayName: "Tim" },
+        { id: "h2", acquiredAt: new Date(Date.UTC(2024, 8, 1)), acquiredVia: "TRADED", placeLabel: "Seattle, WA", holderDisplayName: "Sarah" },
       ],
-      [{ loggedAt: new Date(Date.UTC(2024, 5, 1)), placeLabel: "Denver, CO", holderDisplayName: "Tim" }]
+      [{ id: "c1", loggedAt: new Date(Date.UTC(2024, 5, 1)), placeLabel: "Denver, CO", holderDisplayName: "Tim" }]
     );
-    expect(lines).toEqual([
+    expect(rows.map((r) => r.line)).toEqual([
       "Bought in Orlando, FL · March 2024 · Tim",
       "Spotted in Denver, CO · June 2024 · Tim",
       "Traded in Seattle, WA · September 2024 · Sarah",
+    ]);
+    expect(rows.map((r) => ({ kind: r.kind, id: r.id }))).toEqual([
+      { kind: "holding", id: "h1" },
+      { kind: "checkin", id: "c1" },
+      { kind: "holding", id: "h2" },
     ]);
   });
 });

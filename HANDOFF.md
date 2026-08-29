@@ -1,6 +1,6 @@
 # Wandering Pins — handoff notes
 
-Status as of 2026-08-29: v1 built per WANDERING_PINS_BRIEF.md, deployed, and live at wanderingpins.com. Since the initial build: added user profiles/auth, replaced addressed trades with unaddressed release, added camera-based QR scanning to pin lookup, added camera capture/crop/size-limits to holding photos, settled the physical sticker sheet's design, made the current holder's title and front photo public on the pin journey page (explicit user decision, loosening a brief-section-7 guarantee) while keeping notes permanently private, closed a real `rls_disabled_in_public` gap on every table, added timeouts around every Supabase Auth network call (middleware session-refresh, sign-in, and confirmation-link exchange) so a degraded Auth API can no longer stall the whole site or hang a sign-in attempt, made `/my-pins` rows show a photo/acquisition/current-location summary instead of just a name and date, let a holder log that a pin moved to a new location without releasing it (private photos/description, public place/date), let someone tentatively claim a still-held pin (invisible on the public page until the real holder releases, then auto-promotes), and stopped rendering the pin's raw code as text on its public journey page. See "Since v1" and "Since v1 continued" below for details, "Known open items" for what's still open, and "Future ideas" for what's discussed but not started. A new Claude Code session opened in this folder should read this file first, then the brief (which is kept in sync with current behavior, not historical).
+Status as of 2026-08-29: v1 built per WANDERING_PINS_BRIEF.md, deployed, and live at wanderingpins.com. Since the initial build: added user profiles/auth, replaced addressed trades with unaddressed release, added camera-based QR scanning to pin lookup, added camera capture/crop/size-limits to holding photos, settled the physical sticker sheet's design, made the current holder's title and front photo public on the pin journey page (explicit user decision, loosening a brief-section-7 guarantee) while keeping notes permanently private, closed a real `rls_disabled_in_public` gap on every table, added timeouts around every Supabase Auth network call (middleware session-refresh, sign-in, and confirmation-link exchange) so a degraded Auth API can no longer stall the whole site or hang a sign-in attempt, made `/my-pins` rows show a photo/acquisition/current-location summary instead of just a name and date, let a holder log that a pin moved to a new location without releasing it (private photos/description, public place/date), let someone tentatively claim a still-held pin (invisible on the public page until the real holder releases, then auto-promotes), stopped rendering the pin's raw code as text on its public journey page, and added inline "add details" (notes + photos) directly on the pin journey page next to each timeline line you own, replacing the old go-to-a-different-page edit flow. See "Since v1" and "Since v1 continued" below for details, "Known open items" for what's still open, and "Future ideas" for what's discussed but not started. A new Claude Code session opened in this folder should read this file first, then the brief (which is kept in sync with current behavior, not historical).
 
 ## Since v1 (2026-08-08)
 
@@ -174,6 +174,44 @@ the entire site, not just auth-gated flows.
   itself (no way to force it on demand) — logic mirrors the already-incident-tested middleware fix.
 
 Pushed to `main` in commit `56a9d16` — deployed via the usual Vercel auto-deploy.
+
+## Since v1 continued (2026-08-29), part 6
+
+**Inline "add details" directly on the pin journey page, replacing the go-to-a-different-page edit
+flow.** Editing anything used to mean clicking to `/holdings/[holdingId]`. Each timeline line on
+`/p/[slug]` (both a holding's acquisition line and a check-in's) now has its own "Add details"/"Edit
+details" affordance right next to it, visible only to that line's owner — clicking it expands a
+notes textarea + photo upload in place; Save collapses it back down.
+
+- `src/lib/timeline.ts`: `buildJourneyTimeline` (string-only) replaced with `buildJourneyRows`,
+  which tags each line with its holding/check-in id so the page can attach the right widget to the
+  right row. `PinJourneyTimeline` (`src/components/`) takes an `action?: ReactNode` slot per line
+  instead of a plain string, staying presentational — it doesn't know about ownership or ids.
+- New `src/components/InlineHoldingDetails.tsx` / `InlineCheckInDetails.tsx` — deliberately narrower
+  than the full holdings page: just notes + photos, no title/release-date/front-back-side picker.
+  New holding photos uploaded here always save as kind `OTHER` (private) — setting the public front
+  photo still requires the full holdings page, where that consequence is spelled out next to the
+  side picker. Reuse the existing `PhotoCropModal`/`cropPhotoToBlob` and the existing
+  `uploadPhoto`/`deletePhoto`/`uploadCheckInPhoto`/`deleteCheckInPhoto`/`updateCheckInNote` actions
+  unchanged; added one new narrow action, `updateHoldingNote` (`src/app/holdings/[holdingId]/actions.ts`),
+  since the existing `updateHoldingDetails` bundles title/notes/release-date/place into one
+  submission and would've silently wiped title/release info if the inline widget (notes-only) used
+  it directly.
+- **Removed** the old "Your notes"/"Your locations" summary sections lower on the page — explicit
+  user decision, since they'd become a duplicate view of the same content once every line has its
+  own inline widget.
+- **A real bug, caught mid-build and fixed in both the new widgets and the settings page's edit-
+  toggle from part 5**: the collapse-after-save logic compared `state.status` (a string) between
+  renders to detect a completed save — but saving a second time in a row still returns
+  `{status: "ok"}`, the same string as before, so the comparison saw no change and never
+  re-collapsed. Fixed by comparing the whole state *object* (`useActionState` returns a fresh object
+  every completion, so reference comparison catches every save, not just the first). Caught by
+  actually clicking Save twice in a row during manual testing, not by the type checker or test suite.
+- Verified end-to-end live in the browser (register a pin, add inline notes + a photo, confirm
+  save-then-resave both collapse correctly, confirm a logged-out visitor sees neither the private
+  content nor any "Add details" affordance on either a holding or check-in line), then cleaned up
+  the throwaway pin/account. `tsc`, `eslint`, and the full test suite (73 tests, unchanged — this
+  was UI wiring over already-tested actions, not new pure logic) all clean.
 
 ## Future ideas (not started, not committed to)
 
