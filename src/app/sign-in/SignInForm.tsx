@@ -2,6 +2,7 @@
 
 import { useActionState, useState } from "react";
 import { sendMagicLink, signInWithPassword } from "./actions";
+import { TurnstileWidget } from "./TurnstileWidget";
 
 export function SignInForm({ next }: { next?: string }) {
   const [state, formAction, pending] = useActionState(sendMagicLink, { status: "idle" as const });
@@ -26,6 +27,7 @@ export function SignInForm({ next }: { next?: string }) {
           className="rounded-md border border-neutral-300 px-3 py-2 text-sm"
           aria-label="Email address"
         />
+        <TurnstileWidget resetKey={state} />
         <button
           type="submit"
           disabled={pending}
@@ -55,6 +57,7 @@ export function SignInForm({ next }: { next?: string }) {
             className="rounded-md border border-neutral-300 px-3 py-2 text-sm"
             aria-label="Password"
           />
+          <TurnstileWidget resetKey={passwordState} />
           <button
             type="submit"
             disabled={passwordPending}

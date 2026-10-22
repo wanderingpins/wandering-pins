@@ -8,7 +8,17 @@ import { withTimeout, AUTH_CALL_TIMEOUT_MS } from "@/lib/with-timeout";
 
 const TIMEOUT_MESSAGE = "This is taking longer than expected — please try again in a moment.";
 
+const CAPTCHA_MESSAGE = "We couldn't verify you're human — wait a moment for the check to finish, then try again.";
+
 const emailSchema = z.string().email();
+
+// Turnstile token from <TurnstileWidget>. Supabase verifies it itself when
+// CAPTCHA protection is on in the dashboard; absent/empty just means the
+// widget isn't configured (local dev) or hasn't finished yet.
+function captchaTokenFrom(formData: FormData): string | undefined {
+  const token = formData.get("captchaToken");
+  return typeof token === "string" && token ? token : undefined;
+}
 
 export async function sendMagicLink(
   _prevState: { status: "idle" | "sent" | "error"; message?: string },
@@ -31,6 +41,7 @@ export async function sendMagicLink(
       email: parsed.data,
       options: {
         emailRedirectTo: destinationUrl.toString(),
+        captchaToken: captchaTokenFrom(formData),
       },
     }),
     AUTH_CALL_TIMEOUT_MS
@@ -49,7 +60,9 @@ export async function sendMagicLink(
     const message =
       result.error.code === "over_email_send_rate_limit"
         ? "You've requested a few of these already — wait about a minute and try again."
-        : "Couldn't send that link — please try again.";
+        : result.error.code === "captcha_failed"
+          ? CAPTCHA_MESSAGE
+          : "Couldn't send that link — please try again.";
     return { status: "error", message };
   }
   return { status: "sent" };
@@ -78,12 +91,19 @@ export async function signInWithPassword(
   }
 
   const supabase = await createClient();
-  const result = await withTimeout(supabase.auth.signInWithPassword(parsed.data), AUTH_CALL_TIMEOUT_MS);
+  const result = await withTimeout(
+    supabase.auth.signInWithPassword({
+      ...parsed.data,
+      options: { captchaToken: captchaTokenFrom(formData) },
+    }),
+    AUTH_CALL_TIMEOUT_MS
+  );
   if (result === "timeout") {
     console.error(`signInWithPassword timed out after ${AUTH_CALL_TIMEOUT_MS}ms`);
     return { status: "error", message: TIMEOUT_MESSAGE };
   }
   if (result.error) {
+    if (result.error.code === "captcha_failed") return { status: "error", message: CAPTCHA_MESSAGE };
     return { status: "error", message: "Incorrect email or password." };
   }
 
