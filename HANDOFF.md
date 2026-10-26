@@ -471,6 +471,10 @@ The brief got some things right in principle but wrong in a couple of real-world
 
 Bots were submitting the sign-in form with arbitrary addresses, each one sending a Resend email and creating an unconfirmed Supabase user. `src/app/sign-in/TurnstileWidget.tsx` now sits in both sign-in forms; its token goes to Supabase as `captchaToken` (`sendMagicLink`, `signInWithPassword` in `actions.ts`). Verification happens inside Supabase, not in this app, so **it only protects anything once CAPTCHA is switched on in the Supabase dashboard** (Authentication -> Attack Protection -> Turnstile + Secret key). Needs `NEXT_PUBLIC_TURNSTILE_SITE_KEY` in Vercel; unset = widget hidden. Turning on the Supabase toggle without the site key deployed locks everyone out of sign-in, so set the env var and redeploy first.
 
+## Traffic analytics (Vercel Web Analytics)
+
+`<Analytics />` from `@vercel/analytics/next` is in the root layout (`src/app/layout.tsx`). It's cookieless, filters known bots, and sends nothing until **Analytics is enabled for the project in the Vercel dashboard** (project -> Analytics tab -> Enable). `npm install @vercel/analytics` fails with ERESOLVE here (an optional SvelteKit/vite peer clashes with vitest's vite), so it was installed with `--legacy-peer-deps`, which also flipped a pile of `devOptional` -> `dev` flags in `package-lock.json` — harmless metadata. Use the same flag if reinstalling.
+
 ## Known open items (not urgent)
 
 - One user's real inbox (a Microsoft 365 address) never received a sign-in email despite Resend reporting successful delivery — likely a recipient-side mail-flow/quarantine issue, not something in this app.
