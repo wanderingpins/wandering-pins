@@ -39,8 +39,10 @@ export function PinCard({ pin }: { pin: DirectoryPin }) {
           {/* Stuck over the photo's lower-left corner, on top of everything. */}
           <PinSticker
             className="absolute -bottom-9 -left-6 z-10 sm:-left-11"
-            holderDisplayName={pin.holderDisplayName}
-            verifiedCount={pin.verifiedCount}
+            kicker={pin.holderDisplayName ? "With" : undefined}
+            headline={pin.holderDisplayName ?? "UP FOR GRABS"}
+            count={{ value: pin.verifiedCount, label: "Verified" }}
+            srText={`${pin.holderDisplayName ? `Currently with ${pin.holderDisplayName}` : "Not currently held by anyone"}. ${pin.verifiedCount} verified location${pin.verifiedCount === 1 ? "" : "s"}.`}
             color={stickerColor}
             tilt={stickerTilt}
           />

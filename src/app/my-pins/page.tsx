@@ -1,12 +1,24 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
 import type { AcquiredVia } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireAppUser } from "@/lib/auth";
 import { formatAcquisition } from "@/lib/timeline";
+import { CorkWall } from "@/components/CorkWall";
+import { HoldingCard } from "@/components/HoldingCard";
 import { PinLookupForm } from "@/components/PinLookupForm";
+import { ViewToggle, type View } from "@/components/ViewToggle";
 
-export default async function MyPinsPage() {
+type Props = { searchParams: Promise<Record<string, string | string[] | undefined>> };
+
+type Kind = "current" | "pending" | "ever";
+
+export default async function MyPinsPage({ searchParams }: Props) {
   const user = await requireAppUser("/my-pins");
+
+  // Same default and URL convention as /pins: cork unless ?view=list.
+  const rawView = (await searchParams).view;
+  const view: View = (Array.isArray(rawView) ? rawView[0] : rawView) === "list" ? "list" : "cork";
 
   const holdings = await prisma.pinHolding.findMany({
     where: { userId: user.id },
@@ -32,97 +44,118 @@ export default async function MyPinsPage() {
   });
   const currentLocationByPinId = new Map(openHoldings.map((h) => [h.pinId, h.placeLabel]));
 
+  // Props both views share, per section: a pending claim has no real current
+  // location, and only "Ever had" distinguishes released from still-held.
+  const baseProps = (h: (typeof holdings)[number], kind: Kind) => ({
+    id: h.id,
+    slug: h.pin.slug,
+    placeLabel: h.placeLabel,
+    acquiredAt: h.acquiredAt,
+    acquiredVia: h.acquiredVia,
+    currentLocation: kind === "pending" ? null : (currentLocationByPinId.get(h.pinId) ?? null),
+    released: kind === "ever" ? h.releasedAt !== null : undefined,
+    pending: kind === "pending" ? true : undefined,
+  });
+
+  const render = (items: typeof holdings, kind: Kind) =>
+    view === "list" ? (
+      <ul className="mt-3 divide-y divide-neutral-200">
+        {items.map((h) => (
+          <HoldingRow key={h.id} {...baseProps(h, kind)} title={h.title?.title} photoId={h.photos[0]?.id} />
+        ))}
+      </ul>
+    ) : (
+      <CorkWall className="mt-3">
+        {items.map((h) => (
+          <li key={h.id}>
+            <HoldingCard
+              {...baseProps(h, kind)}
+              title={h.title?.title.trim() || h.placeLabel}
+              description={h.title?.description?.trim() || ""}
+              photoSrc={h.photos[0] ? `/api/holdings/${h.id}/photos/${h.photos[0].id}` : undefined}
+            />
+          </li>
+        ))}
+      </CorkWall>
+    );
+
   return (
-    <main className="mx-auto max-w-2xl px-4 py-10">
-      <h1 className="text-2xl font-semibold">My pins</h1>
-
-      <section className="mt-6 rounded-lg border border-neutral-200 p-4">
-        <h2 className="text-sm font-semibold text-neutral-700">Got a new pin?</h2>
-        <p className="mt-1 text-sm text-neutral-600">
-          Scan the code on the back, or type it below, to register it to your account.
-        </p>
-        <div className="mt-3 max-w-sm">
-          <PinLookupForm />
+    <main className="pb-10">
+      <div className="mx-auto max-w-2xl px-4 pt-10">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h1 className="text-2xl font-semibold">My pins</h1>
+          <ViewToggle view={view} basePath="/my-pins" />
         </div>
-      </section>
 
-      <section className="mt-8">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-500">
-          Currently have
-        </h2>
-        {currentlyHave.length === 0 ? (
-          <p className="mt-3 text-neutral-600">Nothing right now.</p>
-        ) : (
-          <ul className="mt-3 divide-y divide-neutral-200">
-            {currentlyHave.map((h) => (
-              <HoldingRow
-                key={h.id}
-                id={h.id}
-                slug={h.pin.slug}
-                placeLabel={h.placeLabel}
-                title={h.title?.title}
-                acquiredAt={h.acquiredAt}
-                acquiredVia={h.acquiredVia}
-                currentLocation={currentLocationByPinId.get(h.pinId) ?? null}
-                photoId={h.photos[0]?.id}
-              />
-            ))}
-          </ul>
-        )}
-      </section>
+        <section className="mt-6 rounded-lg border border-neutral-200 p-4">
+          <h2 className="text-sm font-semibold text-neutral-700">Got a new pin?</h2>
+          <p className="mt-1 text-sm text-neutral-600">
+            Scan the code on the back, or type it below, to register it to your account.
+          </p>
+          <div className="mt-3 max-w-sm">
+            <PinLookupForm />
+          </div>
+        </section>
+      </div>
+
+      <Section className="mt-8" title="Currently have" view={view} count={currentlyHave.length} emptyText="Nothing right now.">
+        {render(currentlyHave, "current")}
+      </Section>
 
       {pendingClaims.length > 0 && (
-        <section className="mt-10">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-500">Pending</h2>
-          <p className="mt-1 text-xs text-neutral-500">
-            Unreleased — the current holder hasn&apos;t let these go yet, so they won&apos;t show up on the public
-            journey until they do.
-          </p>
-          <ul className="mt-3 divide-y divide-neutral-200">
-            {pendingClaims.map((h) => (
-              <HoldingRow
-                key={h.id}
-                id={h.id}
-                slug={h.pin.slug}
-                placeLabel={h.placeLabel}
-                title={h.title?.title}
-                acquiredAt={h.acquiredAt}
-                acquiredVia={h.acquiredVia}
-                currentLocation={null}
-                pending
-                photoId={h.photos[0]?.id}
-              />
-            ))}
-          </ul>
-        </section>
+        <Section
+          className="mt-10"
+          title="Pending"
+          note={
+            <p className="mt-1 text-xs text-neutral-500">
+              Unreleased — the current holder hasn&apos;t let these go yet, so they won&apos;t show up on the public
+              journey until they do.
+            </p>
+          }
+          view={view}
+          count={pendingClaims.length}
+          emptyText=""
+        >
+          {render(pendingClaims, "pending")}
+        </Section>
       )}
 
-      <section className="mt-10">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-500">
-          Ever had
-        </h2>
-        {everHad.length === 0 ? (
-          <p className="mt-3 text-neutral-600">No pins yet.</p>
-        ) : (
-          <ul className="mt-3 divide-y divide-neutral-200">
-            {everHad.map((h) => (
-              <HoldingRow
-                key={h.id}
-                id={h.id}
-                slug={h.pin.slug}
-                placeLabel={h.placeLabel}
-                title={h.title?.title}
-                acquiredAt={h.acquiredAt}
-                acquiredVia={h.acquiredVia}
-                currentLocation={currentLocationByPinId.get(h.pinId) ?? null}
-                released={h.releasedAt !== null}
-                photoId={h.photos[0]?.id}
-              />
-            ))}
-          </ul>
-        )}
-      </section>
+      <Section className="mt-10" title="Ever had" view={view} count={everHad.length} emptyText="No pins yet.">
+        {render(everHad, "ever")}
+      </Section>
     </main>
+  );
+}
+
+// A titled section. The heading, note and empty message sit in the page's
+// narrow column; the list view stays in that column too, but the cork board
+// runs full width like it does on /pins.
+function Section({
+  title,
+  note,
+  view,
+  count,
+  emptyText,
+  className,
+  children,
+}: {
+  title: string;
+  note?: ReactNode;
+  view: View;
+  count: number;
+  emptyText: string;
+  className: string;
+  children: ReactNode;
+}) {
+  return (
+    <section className={className}>
+      <div className="mx-auto max-w-2xl px-4">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-500">{title}</h2>
+        {note}
+        {count === 0 ? <p className="mt-3 text-neutral-600">{emptyText}</p> : view === "list" ? children : null}
+      </div>
+      {count > 0 && view === "cork" && children}
+    </section>
   );
 }
 

@@ -1,10 +1,9 @@
 import Link from "next/link";
 import { z } from "zod";
-import { CorkBoard } from "@/components/CorkBoard";
+import { CorkWall } from "@/components/CorkWall";
 import { PinCard } from "@/components/PinCard";
+import { ViewToggle, type View } from "@/components/ViewToggle";
 import { loadDirectoryPage, type DirectorySort } from "@/lib/pin-directory";
-
-type View = "cork" | "list";
 
 // Public, no authentication (brief section 6.1's spirit extended to a
 // browsable index rather than one pin at a time) — rate-limited the same
@@ -85,7 +84,7 @@ export default async function PinsDirectoryPage({ searchParams }: Props) {
           >
             Apply
           </button>
-          <ViewToggle view={view} params={{ q, sort }} />
+          <ViewToggle view={view} basePath="/pins" params={{ q, sort }} />
         </form>
       </div>
 
@@ -124,17 +123,14 @@ export default async function PinsDirectoryPage({ searchParams }: Props) {
           </ul>
         </div>
       ) : (
-        // Cork is the default view: a board of small pin scenes, as many side
-        // by side as fit (one column on a phone).
-        <CorkBoard className="mt-6 px-4 py-10 sm:px-8">
-          <ul className="mx-auto grid max-w-6xl grid-cols-1 gap-x-6 gap-y-12 sm:grid-cols-[repeat(auto-fill,minmax(300px,1fr))]">
-            {pins.map((pin) => (
-              <li key={pin.slug}>
-                <PinCard pin={pin} />
-              </li>
-            ))}
-          </ul>
-        </CorkBoard>
+        // Cork is the default view: a board of small pin scenes.
+        <CorkWall>
+          {pins.map((pin) => (
+            <li key={pin.slug}>
+              <PinCard pin={pin} />
+            </li>
+          ))}
+        </CorkWall>
       )}
 
       {pageCount > 1 && (
@@ -158,39 +154,6 @@ export default async function PinsDirectoryPage({ searchParams }: Props) {
 
 function firstValue(v: string | string[] | undefined): string | undefined {
   return Array.isArray(v) ? v[0] : v;
-}
-
-// Cork board or plain list. Switching keeps the search and sort, and drops the
-// page number (the two views paginate the same way, but landing on page 1 is
-// the less surprising reset).
-function ViewToggle({ view, params }: { view: View; params: { q?: string; sort?: DirectorySort } }) {
-  function hrefFor(target: View) {
-    const qs = new URLSearchParams();
-    if (params.q) qs.set("q", params.q);
-    if (params.sort) qs.set("sort", params.sort);
-    if (target === "list") qs.set("view", "list");
-    const query = qs.toString();
-    return query ? `/pins?${query}` : "/pins";
-  }
-
-  function tab(target: View, label: string) {
-    return (
-      <Link
-        href={hrefFor(target)}
-        aria-current={view === target ? "page" : undefined}
-        className={`px-3 py-1.5 ${view === target ? "bg-brand text-white" : "text-neutral-700 hover:bg-neutral-50"}`}
-      >
-        {label}
-      </Link>
-    );
-  }
-
-  return (
-    <div role="group" aria-label="View" className="ml-auto flex overflow-hidden rounded-md border border-neutral-300 text-sm font-medium">
-      {tab("cork", "Cork board")}
-      {tab("list", "List")}
-    </div>
-  );
 }
 
 function PageLink({
