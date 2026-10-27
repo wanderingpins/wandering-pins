@@ -215,19 +215,15 @@ export default async function PinPage({ params }: Props) {
           <div className="mx-auto flex w-full max-w-5xl flex-col items-center gap-10">
             <PinNamePill>{publicTitle}</PinNamePill>
 
-            {/* Photo centered on the board; description note in the lower right
-                (stacked and centered under the photo below lg). The empty first
-                column, and minmax(0,...) so a wide note can't squeeze the photo
-                off-center, are what keep the photo truly centered. */}
+            {/* Photo centered on the board; description note in the lower right;
+                the edit sticker beside the photo. Below lg they stack in that
+                order: photo, note, then the sticker (it is last in the markup
+                too, so keyboard order matches). On lg the explicit columns put
+                the sticker in the otherwise-empty first column, and
+                minmax(0,...) so a wide note can't squeeze the photo is what
+                keeps the photo truly centered. */}
             <div className="grid w-full items-end gap-10 lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] lg:gap-6">
-              {canEdit ? (
-                <div className="flex justify-start pl-2 lg:justify-end lg:self-center lg:pl-0">
-                  <EditPinSticker color={stickerColor} tilt={stickerTilt} />
-                </div>
-              ) : (
-                <div className="hidden lg:block" />
-              )}
-              <div className="justify-self-center">
+              <div className="justify-self-center lg:col-start-2 lg:row-start-1">
                 {isCurrentHolder ? (
                   <PinPhotoWidget
                     holdingId={openHolding!.id}
@@ -245,7 +241,7 @@ export default async function PinPage({ params }: Props) {
                   )
                 )}
               </div>
-              <div className="justify-self-center lg:justify-self-end">
+              <div className="justify-self-center lg:col-start-3 lg:row-start-1 lg:justify-self-end">
                 {isCurrentHolder ? (
                   <PinNote holdingId={openHolding!.id} initialDescription={publicDescription} pinColor={paperPinColor} />
                 ) : (
@@ -256,6 +252,11 @@ export default async function PinPage({ params }: Props) {
                   )
                 )}
               </div>
+              {canEdit && (
+                <div className="flex justify-start pl-2 lg:col-start-1 lg:row-start-1 lg:justify-end lg:self-center lg:pl-0">
+                  <EditPinSticker color={stickerColor} tilt={stickerTilt} />
+                </div>
+              )}
             </div>
           </div>
         </CorkBoard>
