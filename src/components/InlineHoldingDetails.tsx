@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useRef, useState } from "react";
+import { useEditMode } from "@/components/PinEditMode";
 import type { Area } from "react-easy-crop";
 import { updateHoldingNote, uploadPhoto, deletePhoto, type ActionState } from "@/app/holdings/[holdingId]/actions";
 import { PhotoCropModal } from "@/app/holdings/[holdingId]/PhotoCropModal";
@@ -31,6 +32,11 @@ export function InlineHoldingDetails({
 }) {
   const [expanded, setExpanded] = useState(false);
   const hasDetails = !!initialNotes || photos.length > 0;
+  // Nothing is editable until the owner turns on edit mode (the "Edit pin
+  // information" sticker on the pin page); leaving it also collapses an open
+  // editor, while the read-only preview of saved notes/photos stays.
+  const editing = useEditMode();
+  const open = expanded && editing;
 
   const noteAction = updateHoldingNote.bind(null, holdingId);
   const [noteState, noteFormAction, notePending] = useActionState<ActionState, FormData>(noteAction, { status: "idle" });
@@ -105,7 +111,7 @@ export function InlineHoldingDetails({
 
   return (
     <div className="flex flex-col gap-2">
-      {!expanded && hasDetails && (
+      {!open && hasDetails && (
         <div className="flex flex-col gap-2 rounded-lg border border-neutral-200 bg-neutral-50 p-3">
           <p className="inline-flex w-fit items-center gap-1.5 rounded-full bg-neutral-100 px-2.5 py-0.5 text-xs font-medium text-neutral-600">
             🔒 Only you can see this
@@ -128,10 +134,12 @@ export function InlineHoldingDetails({
         </div>
       )}
 
-      {!expanded ? (
-        <button type="button" onClick={() => setExpanded(true)} className="self-start text-sm text-accent hover:underline">
-          {hasDetails ? "Edit details" : "Add details"}
-        </button>
+      {!open ? (
+        editing && (
+          <button type="button" onClick={() => setExpanded(true)} className="self-start text-sm text-accent hover:underline">
+            {hasDetails ? "Edit details" : "Add details"}
+          </button>
+        )
       ) : (
         <div className="flex flex-col gap-3 rounded-lg border border-neutral-200 bg-neutral-50 p-3">
           <p className="inline-flex w-fit items-center gap-1.5 rounded-full bg-neutral-100 px-2.5 py-0.5 text-xs font-medium text-neutral-600">

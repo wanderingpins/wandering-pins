@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useEditMode } from "@/components/PinEditMode";
 
 type VerifyFn = (lat: number, lng: number) => Promise<{ status: "ok" | "error"; message?: string }>;
 
@@ -20,12 +21,16 @@ export function VerifyLocationButton({
 }) {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Verifying changes the page, so like the other owner controls it only
+  // appears in edit mode; otherwise the owner sees the plain label too.
+  const editing = useEditMode();
+  const canVerify = isOwn && editing;
 
   if (verified) {
     return <span className="text-xs text-green-700">✅ Location verified</span>;
   }
 
-  if (!isOwn) {
+  if (!canVerify) {
     return <span className="text-xs text-neutral-400">Not verified</span>;
   }
 

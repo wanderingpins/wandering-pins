@@ -15,7 +15,8 @@ import { CorkBoard } from "@/components/CorkBoard";
 import { PinNamePill } from "@/components/PinNamePill";
 import { PinPhotoFrame } from "@/components/PinPhotoFrame";
 import { PinPhotoWidget } from "@/components/PinPhotoWidget";
-import { PinDescriptionWidget } from "@/components/PinDescriptionWidget";
+import { PinNote } from "@/components/PinNote";
+import { EditOnly, EditPinSticker, PinEditProvider } from "@/components/PinEditMode";
 import { TornPaper } from "@/components/TornPaper";
 import { VerifyLocationButton } from "@/components/VerifyLocationButton";
 import { verifyHoldingLocation } from "@/app/holdings/[holdingId]/actions";
@@ -102,6 +103,9 @@ export default async function PinPage({ params }: Props) {
   // details" widgets render, for this one request.
   const claims = await getAuthClaims(BEST_EFFORT_AUTH_TIMEOUT_MS);
   const isCurrentHolder = !!claims && claims.sub === openHolding?.userId;
+  // Gets the "Edit pin information" sticker: the current holder, and anyone who
+  // owns an earlier line of this journey (they can still edit their own notes).
+  const canEdit = !!claims && confirmedHoldings.some((h) => h.userId === claims.sub);
   const ownPendingHolding = claims ? pin.holdings.find((h) => h.pending && h.userId === claims.sub) : undefined;
 
   // Title, description, and (front) photo are a deliberate, narrow
@@ -115,7 +119,7 @@ export default async function PinPage({ params }: Props) {
   const frontPhotoId = openHolding?.photos.find((p) => p.kind === "FRONT")?.id;
   const hasPublicPhoto = !!frontPhotoId;
   // Same per-pin push pin colors as this pin's card on /pins.
-  const { photoPinColor, paperPinColor } = pinCardStyle(parsed.slug);
+  const { photoPinColor, paperPinColor, stickerColor, stickerTilt } = pinCardStyle(parsed.slug);
 
   // "Part of a series" — a lightweight, public link-through to the
   // decoupled series/checklist catalog (src/app/series), not a field on
@@ -206,115 +210,123 @@ export default async function PinPage({ params }: Props) {
 
   return (
     <main>
-      <CorkBoard className="px-4 py-8 sm:py-10">
-        <div className="mx-auto flex w-full max-w-5xl flex-col items-center gap-10">
-          <PinNamePill>{publicTitle}</PinNamePill>
+      <PinEditProvider>
+        <CorkBoard className="px-4 py-8 sm:py-10">
+          <div className="mx-auto flex w-full max-w-5xl flex-col items-center gap-10">
+            <PinNamePill>{publicTitle}</PinNamePill>
 
-          {/* Photo centered on the board; description note in the lower right
-              (stacked and centered under the photo below lg). The empty first
-              column, and minmax(0,...) so a wide note can't squeeze the photo
-              off-center, are what keep the photo truly centered. */}
-          <div className="grid w-full items-end gap-10 lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] lg:gap-6">
-            <div className="hidden lg:block" />
-            <div className="justify-self-center">
-              {isCurrentHolder ? (
-                <PinPhotoWidget
-                  holdingId={openHolding!.id}
-                  slug={parsed.slug}
-                  frontPhotoId={frontPhotoId}
-                  publicTitle={publicTitle}
-                  pinColor={photoPinColor}
-                />
+            {/* Photo centered on the board; description note in the lower right
+                (stacked and centered under the photo below lg). The empty first
+                column, and minmax(0,...) so a wide note can't squeeze the photo
+                off-center, are what keep the photo truly centered. */}
+            <div className="grid w-full items-end gap-10 lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] lg:gap-6">
+              {canEdit ? (
+                <div className="flex justify-start pl-2 lg:justify-end lg:self-center lg:pl-0">
+                  <EditPinSticker color={stickerColor} tilt={stickerTilt} />
+                </div>
               ) : (
-                hasPublicPhoto && (
-                  <PinPhotoFrame pinColor={photoPinColor}>
-                    {/* eslint-disable-next-line @next/next/no-img-element -- served through a dedicated public route, not a static asset next/image can optimize */}
-                    <img src={`/api/pins/${parsed.slug}/photo`} alt={publicTitle} className="size-56 object-cover" />
-                  </PinPhotoFrame>
-                )
+                <div className="hidden lg:block" />
               )}
-            </div>
-            <div className="justify-self-center lg:justify-self-end">
-              {isCurrentHolder ? (
-                <TornPaper pinColor={paperPinColor}>
-                  <PinDescriptionWidget holdingId={openHolding!.id} initialDescription={publicDescription} />
-                </TornPaper>
-              ) : (
-                publicDescription && (
-                  <TornPaper pinColor={paperPinColor}>
-                    <p className="whitespace-pre-wrap font-hand text-[22px] leading-7 text-ink">{publicDescription}</p>
-                  </TornPaper>
-                )
-              )}
+              <div className="justify-self-center">
+                {isCurrentHolder ? (
+                  <PinPhotoWidget
+                    holdingId={openHolding!.id}
+                    slug={parsed.slug}
+                    frontPhotoId={frontPhotoId}
+                    publicTitle={publicTitle}
+                    pinColor={photoPinColor}
+                  />
+                ) : (
+                  hasPublicPhoto && (
+                    <PinPhotoFrame pinColor={photoPinColor}>
+                      {/* eslint-disable-next-line @next/next/no-img-element -- served through a dedicated public route, not a static asset next/image can optimize */}
+                      <img src={`/api/pins/${parsed.slug}/photo`} alt={publicTitle} className="size-56 object-cover" />
+                    </PinPhotoFrame>
+                  )
+                )}
+              </div>
+              <div className="justify-self-center lg:justify-self-end">
+                {isCurrentHolder ? (
+                  <PinNote holdingId={openHolding!.id} initialDescription={publicDescription} pinColor={paperPinColor} />
+                ) : (
+                  publicDescription && (
+                    <TornPaper pinColor={paperPinColor}>
+                      <p className="whitespace-pre-wrap font-hand text-[22px] leading-7 text-ink">{publicDescription}</p>
+                    </TornPaper>
+                  )
+                )}
+              </div>
             </div>
           </div>
-        </div>
-      </CorkBoard>
+        </CorkBoard>
 
-      <div className="mx-auto max-w-2xl px-4 py-10">
-        {seriesLink ? (
-          <p className="mt-3 text-sm text-neutral-600">
-            Part of a series:{" "}
-            <Link href={`/series/${seriesLink.seriesItem.series.id}`} className="font-medium text-accent hover:underline">
-              {seriesLink.seriesItem.series.name} — {seriesLink.seriesItem.label}
-            </Link>
-          </p>
-        ) : (
-          isCurrentHolder && (
-            <p className="mt-3 text-sm text-neutral-500">
-              <Link href={`/series?linkPin=${pin.id}`} className="text-accent hover:underline">
-                Add this pin to a series
+        <div className="mx-auto max-w-2xl px-4 py-10">
+          {seriesLink ? (
+            <p className="mt-3 text-sm text-neutral-600">
+              Part of a series:{" "}
+              <Link href={`/series/${seriesLink.seriesItem.series.id}`} className="font-medium text-accent hover:underline">
+                {seriesLink.seriesItem.series.name} — {seriesLink.seriesItem.label}
               </Link>
-            </p>
-          )
-        )}
-
-        <h2 className="mt-6 text-2xl font-semibold">Its journey so far</h2>
-
-        <div className="mt-4">
-          <PinJourneyMap points={points} />
-        </div>
-
-        <div className="mt-8">
-          <PinJourneyTimeline lines={timelineLines} />
-        </div>
-
-        <div className="mt-10 rounded-lg border border-neutral-200 p-4">
-          {isCurrentHolder ? (
-            <>
-              <p className="text-sm text-neutral-700">This pin is currently in your hands.</p>
-              <div className="mt-2 flex flex-wrap gap-2">
-                <Link
-                  href={`/holdings/${openHolding!.id}#locations`}
-                  className="inline-block rounded-md border border-neutral-300 px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
-                >
-                  Log a new location
-                </Link>
-                <Link
-                  href={`/trade/${parsed.slug}`}
-                  className="inline-block rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover"
-                >
-                  Log a trade
-                </Link>
-              </div>
-            </>
-          ) : ownPendingHolding ? (
-            <p className="text-sm text-neutral-700">
-              ⏳ Your claim on this pin is pending — it&apos;ll join this journey once the current holder releases it.
             </p>
           ) : (
-            <>
-              <p className="text-sm text-neutral-700">Think you have this pin now?</p>
-              <Link
-                href={`/register/${parsed.slug}`}
-                className="mt-2 inline-block rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover"
-              >
-                Claim this pin
-              </Link>
-            </>
+            isCurrentHolder && (
+              <EditOnly>
+                <p className="mt-3 text-sm text-neutral-500">
+                  <Link href={`/series?linkPin=${pin.id}`} className="text-accent hover:underline">
+                    Add this pin to a series
+                  </Link>
+                </p>
+              </EditOnly>
+            )
           )}
+
+          <h2 className="mt-6 text-2xl font-semibold">Its journey so far</h2>
+
+          <div className="mt-4">
+            <PinJourneyMap points={points} />
+          </div>
+
+          <div className="mt-8">
+            <PinJourneyTimeline lines={timelineLines} />
+          </div>
+
+          <div className="mt-10 rounded-lg border border-neutral-200 p-4">
+            {isCurrentHolder ? (
+              <>
+                <p className="text-sm text-neutral-700">This pin is currently in your hands.</p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <Link
+                    href={`/holdings/${openHolding!.id}#locations`}
+                    className="inline-block rounded-md border border-neutral-300 px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
+                  >
+                    Log a new location
+                  </Link>
+                  <Link
+                    href={`/trade/${parsed.slug}`}
+                    className="inline-block rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover"
+                  >
+                    Log a trade
+                  </Link>
+                </div>
+              </>
+            ) : ownPendingHolding ? (
+              <p className="text-sm text-neutral-700">
+                ⏳ Your claim on this pin is pending — it&apos;ll join this journey once the current holder releases it.
+              </p>
+            ) : (
+              <>
+                <p className="text-sm text-neutral-700">Think you have this pin now?</p>
+                <Link
+                  href={`/register/${parsed.slug}`}
+                  className="mt-2 inline-block rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover"
+                >
+                  Claim this pin
+                </Link>
+              </>
+            )}
+          </div>
         </div>
-      </div>
+      </PinEditProvider>
     </main>
   );
 }

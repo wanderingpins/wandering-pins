@@ -4,6 +4,7 @@ import { useActionState, useRef, useState } from "react";
 import type { Area } from "react-easy-crop";
 import { uploadPhoto, deletePhoto, type ActionState } from "@/app/holdings/[holdingId]/actions";
 import { PhotoCropModal } from "@/app/holdings/[holdingId]/PhotoCropModal";
+import { useEditMode } from "@/components/PinEditMode";
 import { PinPhotoFrame } from "@/components/PinPhotoFrame";
 import { cropPhotoToBlob } from "@/lib/crop-photo";
 
@@ -102,36 +103,45 @@ export function PinPhotoWidget({
   // the owner's controls are navy chips beneath it so they stay legible on cork.
   const chip = "rounded-full bg-navy/90 px-3 py-1 text-xs font-medium shadow hover:bg-navy";
 
+  // Nothing here is editable until the owner turns on edit mode (the "Edit pin
+  // information" sticker); leaving edit mode also closes an open upload panel.
+  const editing = useEditMode();
+  const upload = showUpload && editing;
+
   return (
     <div className="flex flex-col items-center gap-4">
-      {frontPhotoId && !showUpload ? (
+      {frontPhotoId && !upload ? (
         <>
           <PinPhotoFrame pinColor={pinColor}>
             {/* eslint-disable-next-line @next/next/no-img-element -- served through a dedicated public route, not a static asset next/image can optimize */}
             <img src={`/api/pins/${slug}/photo`} alt={publicTitle} className="size-56 object-cover" />
           </PinPhotoFrame>
-          <div className="flex gap-2">
-            <button type="button" onClick={() => setShowUpload(true)} className={`${chip} text-accent`}>
-              Replace photo
-            </button>
-            <form action={deletePhoto.bind(null, holdingId, frontPhotoId)}>
-              <button type="submit" className={`${chip} text-red-600`}>
-                Remove
+          {editing && (
+            <div className="flex gap-2">
+              <button type="button" onClick={() => setShowUpload(true)} className={`${chip} text-accent`}>
+                Replace photo
               </button>
-            </form>
-          </div>
+              <form action={deletePhoto.bind(null, holdingId, frontPhotoId)}>
+                <button type="submit" className={`${chip} text-red-600`}>
+                  Remove
+                </button>
+              </form>
+            </div>
+          )}
         </>
-      ) : !showUpload ? (
+      ) : !upload ? (
         <PinPhotoFrame pinColor={pinColor}>
           <div className="flex size-56 flex-col items-center justify-center gap-2 bg-navy p-4 text-center">
             <p className="text-sm text-neutral-500">Pin photo not available</p>
-            <button
-              type="button"
-              onClick={() => setShowUpload(true)}
-              className="rounded-md border border-neutral-300 bg-panel px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
-            >
-              Add pin photo
-            </button>
+            {editing && (
+              <button
+                type="button"
+                onClick={() => setShowUpload(true)}
+                className="rounded-md border border-neutral-300 bg-panel px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
+              >
+                Add pin photo
+              </button>
+            )}
           </div>
         </PinPhotoFrame>
       ) : (
