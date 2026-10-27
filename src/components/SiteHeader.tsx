@@ -12,10 +12,12 @@ export async function SiteHeader() {
   const claims = await getAuthClaims(BEST_EFFORT_AUTH_TIMEOUT_MS);
 
   return (
-    <header className="flex items-center justify-between border-b border-neutral-200 px-4 py-1.5">
+    // On a phone the logo sits above the nav links (a single row got too long);
+    // from `sm` up it's the usual logo-left, links-right bar.
+    <header className="flex flex-col items-center gap-1 border-b border-neutral-200 px-4 py-1.5 sm:flex-row sm:justify-between">
       <HeaderLogo />
       {claims ? (
-        <div className="flex items-center gap-4">
+        <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1">
           <Link href="/pins" className="text-sm font-medium text-neutral-700 hover:text-white">
             Browse pins
           </Link>
@@ -28,7 +30,7 @@ export async function SiteHeader() {
           <Link href="/settings" className="text-sm font-medium text-neutral-700 hover:text-white">
             Settings
           </Link>
-          <form action="/auth/sign-out" method="post" className="flex items-center gap-3">
+          <form action="/auth/sign-out" method="post" className="flex flex-wrap items-center justify-center gap-x-3">
             <span className="text-sm text-neutral-600">{claims.email}</span>
             <button type="submit" className="text-sm font-medium text-neutral-700 hover:text-white">
               Sign out
@@ -36,7 +38,7 @@ export async function SiteHeader() {
           </form>
         </div>
       ) : (
-        <div className="flex items-center gap-4">
+        <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1">
           <Link href="/pins" className="text-sm font-medium text-neutral-700 hover:text-white">
             Browse pins
           </Link>
