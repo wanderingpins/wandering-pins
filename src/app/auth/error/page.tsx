@@ -9,7 +9,7 @@ export default function AuthErrorPage() {
       </p>
       <Link
         href="/sign-in"
-        className="mt-6 inline-block rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+        className="mt-6 inline-block rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover"
       >
         Back to sign in
       </Link>

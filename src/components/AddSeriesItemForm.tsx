@@ -20,7 +20,7 @@ export function AddSeriesItemForm({ seriesId }: { seriesId: string }) {
 
   if (!showForm) {
     return (
-      <button type="button" onClick={() => setShowForm(true)} className="text-sm text-blue-600 hover:underline">
+      <button type="button" onClick={() => setShowForm(true)} className="text-sm text-accent hover:underline">
         + Add a pin to this series
       </button>
     );
@@ -57,7 +57,7 @@ export function AddSeriesItemForm({ seriesId }: { seriesId: string }) {
         <button
           type="submit"
           disabled={pending}
-          className="rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-60"
+          className="rounded-md bg-brand px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-hover disabled:opacity-60"
         >
           {pending ? "Saving…" : "Add"}
         </button>

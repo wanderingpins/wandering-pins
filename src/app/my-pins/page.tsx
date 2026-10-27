@@ -181,11 +181,11 @@ function HoldingRow({
           )}
         </p>
         <span className="mt-1 flex items-center gap-3 text-sm">
-          <Link href={`/holdings/${id}`} className="text-neutral-500 hover:text-black">
+          <Link href={`/holdings/${id}`} className="text-neutral-500 hover:text-white">
             notes &amp; photos
           </Link>
           {released && (
-            <Link href={`/p/${slug}`} className="text-neutral-500 hover:text-black">
+            <Link href={`/p/${slug}`} className="text-neutral-500 hover:text-white">
               see where it went &rarr;
             </Link>
           )}

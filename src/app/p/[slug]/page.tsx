@@ -6,12 +6,17 @@ import { getAuthClaims } from "@/lib/auth";
 import { BEST_EFFORT_AUTH_TIMEOUT_MS } from "@/lib/with-timeout";
 import { buildJourneyRows, resolveHolderDisplayName } from "@/lib/timeline";
 import { toPublicHolding, toPublicCheckIn } from "@/lib/public-pin";
+import { pinCardStyle } from "@/lib/pin-card-style";
 import { PinJourneyTimeline, type TimelineLine } from "@/components/PinJourneyTimeline";
 import { PinJourneyMap } from "@/components/PinJourneyMap";
 import { InlineHoldingDetails } from "@/components/InlineHoldingDetails";
 import { InlineCheckInDetails } from "@/components/InlineCheckInDetails";
+import { CorkBoard } from "@/components/CorkBoard";
+import { PinNamePill } from "@/components/PinNamePill";
+import { PinPhotoFrame } from "@/components/PinPhotoFrame";
 import { PinPhotoWidget } from "@/components/PinPhotoWidget";
 import { PinDescriptionWidget } from "@/components/PinDescriptionWidget";
+import { TornPaper } from "@/components/TornPaper";
 import { VerifyLocationButton } from "@/components/VerifyLocationButton";
 import { verifyHoldingLocation } from "@/app/holdings/[holdingId]/actions";
 import { verifyCheckInLocation } from "@/app/holdings/[holdingId]/checkin-actions";
@@ -109,6 +114,8 @@ export default async function PinPage({ params }: Props) {
   const publicDescription = openHolding?.title?.description?.trim() || "";
   const frontPhotoId = openHolding?.photos.find((p) => p.kind === "FRONT")?.id;
   const hasPublicPhoto = !!frontPhotoId;
+  // Same per-pin push pin colors as this pin's card on /pins.
+  const { photoPinColor, paperPinColor } = pinCardStyle(parsed.slug);
 
   // "Part of a series" — a lightweight, public link-through to the
   // decoupled series/checklist catalog (src/app/series), not a field on
@@ -198,95 +205,115 @@ export default async function PinPage({ params }: Props) {
   });
 
   return (
-    <main className="mx-auto max-w-2xl px-4 py-10">
-      <p className="text-lg font-medium text-neutral-800">{publicTitle}</p>
-      <h1 className="mt-1 text-2xl font-semibold">Its journey so far</h1>
+    <main>
+      <CorkBoard className="px-4 py-8 sm:py-10">
+        <div className="mx-auto flex w-full max-w-5xl flex-col items-center gap-10">
+          <PinNamePill>{publicTitle}</PinNamePill>
 
-      {isCurrentHolder ? (
-        <PinPhotoWidget
-          holdingId={openHolding!.id}
-          slug={parsed.slug}
-          frontPhotoId={frontPhotoId}
-          publicTitle={publicTitle}
-        />
-      ) : (
-        hasPublicPhoto && (
-          <div className="mt-4">
-            {/* eslint-disable-next-line @next/next/no-img-element -- served through a dedicated public route, not a static asset next/image can optimize */}
-            <img
-              src={`/api/pins/${parsed.slug}/photo`}
-              alt={publicTitle}
-              className="aspect-square w-full max-w-xs rounded-lg border border-neutral-200 object-cover"
-            />
-          </div>
-        )
-      )}
-
-      {isCurrentHolder ? (
-        <PinDescriptionWidget holdingId={openHolding!.id} initialDescription={publicDescription} />
-      ) : (
-        publicDescription && <p className="mt-4 whitespace-pre-wrap text-sm text-neutral-800">{publicDescription}</p>
-      )}
-
-      {seriesLink ? (
-        <p className="mt-3 text-sm text-neutral-600">
-          Part of a series:{" "}
-          <Link href={`/series/${seriesLink.seriesItem.series.id}`} className="font-medium text-blue-600 hover:underline">
-            {seriesLink.seriesItem.series.name} — {seriesLink.seriesItem.label}
-          </Link>
-        </p>
-      ) : (
-        isCurrentHolder && (
-          <p className="mt-3 text-sm text-neutral-500">
-            <Link href={`/series?linkPin=${pin.id}`} className="text-blue-600 hover:underline">
-              Add this pin to a series
-            </Link>
-          </p>
-        )
-      )}
-
-      <div className="mt-6">
-        <PinJourneyMap points={points} />
-      </div>
-
-      <div className="mt-8">
-        <PinJourneyTimeline lines={timelineLines} />
-      </div>
-
-      <div className="mt-10 rounded-lg border border-neutral-200 p-4">
-        {isCurrentHolder ? (
-          <>
-            <p className="text-sm text-neutral-700">This pin is currently in your hands.</p>
-            <div className="mt-2 flex flex-wrap gap-2">
-              <Link
-                href={`/holdings/${openHolding!.id}#locations`}
-                className="inline-block rounded-md border border-neutral-300 px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
-              >
-                Log a new location
-              </Link>
-              <Link
-                href={`/trade/${parsed.slug}`}
-                className="inline-block rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
-              >
-                Log a trade
-              </Link>
+          {/* Photo centered on the board; description note in the lower right
+              (stacked and centered under the photo below lg). The empty first
+              column, and minmax(0,...) so a wide note can't squeeze the photo
+              off-center, are what keep the photo truly centered. */}
+          <div className="grid w-full items-end gap-10 lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] lg:gap-6">
+            <div className="hidden lg:block" />
+            <div className="justify-self-center">
+              {isCurrentHolder ? (
+                <PinPhotoWidget
+                  holdingId={openHolding!.id}
+                  slug={parsed.slug}
+                  frontPhotoId={frontPhotoId}
+                  publicTitle={publicTitle}
+                  pinColor={photoPinColor}
+                />
+              ) : (
+                hasPublicPhoto && (
+                  <PinPhotoFrame pinColor={photoPinColor}>
+                    {/* eslint-disable-next-line @next/next/no-img-element -- served through a dedicated public route, not a static asset next/image can optimize */}
+                    <img src={`/api/pins/${parsed.slug}/photo`} alt={publicTitle} className="size-56 object-cover" />
+                  </PinPhotoFrame>
+                )
+              )}
             </div>
-          </>
-        ) : ownPendingHolding ? (
-          <p className="text-sm text-neutral-700">
-            ⏳ Your claim on this pin is pending — it&apos;ll join this journey once the current holder releases it.
+            <div className="justify-self-center lg:justify-self-end">
+              {isCurrentHolder ? (
+                <TornPaper pinColor={paperPinColor}>
+                  <PinDescriptionWidget holdingId={openHolding!.id} initialDescription={publicDescription} />
+                </TornPaper>
+              ) : (
+                publicDescription && (
+                  <TornPaper pinColor={paperPinColor}>
+                    <p className="whitespace-pre-wrap font-hand text-[22px] leading-7 text-ink">{publicDescription}</p>
+                  </TornPaper>
+                )
+              )}
+            </div>
+          </div>
+        </div>
+      </CorkBoard>
+
+      <div className="mx-auto max-w-2xl px-4 py-10">
+        {seriesLink ? (
+          <p className="mt-3 text-sm text-neutral-600">
+            Part of a series:{" "}
+            <Link href={`/series/${seriesLink.seriesItem.series.id}`} className="font-medium text-accent hover:underline">
+              {seriesLink.seriesItem.series.name} — {seriesLink.seriesItem.label}
+            </Link>
           </p>
         ) : (
-          <>
-            <p className="text-sm text-neutral-700">Think you have this pin now?</p>
-            <Link
-              href={`/register/${parsed.slug}`}
-              className="mt-2 inline-block rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
-            >
-              Claim this pin
-            </Link>
-          </>
+          isCurrentHolder && (
+            <p className="mt-3 text-sm text-neutral-500">
+              <Link href={`/series?linkPin=${pin.id}`} className="text-accent hover:underline">
+                Add this pin to a series
+              </Link>
+            </p>
+          )
         )}
+
+        <h2 className="mt-6 text-2xl font-semibold">Its journey so far</h2>
+
+        <div className="mt-4">
+          <PinJourneyMap points={points} />
+        </div>
+
+        <div className="mt-8">
+          <PinJourneyTimeline lines={timelineLines} />
+        </div>
+
+        <div className="mt-10 rounded-lg border border-neutral-200 p-4">
+          {isCurrentHolder ? (
+            <>
+              <p className="text-sm text-neutral-700">This pin is currently in your hands.</p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                <Link
+                  href={`/holdings/${openHolding!.id}#locations`}
+                  className="inline-block rounded-md border border-neutral-300 px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
+                >
+                  Log a new location
+                </Link>
+                <Link
+                  href={`/trade/${parsed.slug}`}
+                  className="inline-block rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover"
+                >
+                  Log a trade
+                </Link>
+              </div>
+            </>
+          ) : ownPendingHolding ? (
+            <p className="text-sm text-neutral-700">
+              ⏳ Your claim on this pin is pending — it&apos;ll join this journey once the current holder releases it.
+            </p>
+          ) : (
+            <>
+              <p className="text-sm text-neutral-700">Think you have this pin now?</p>
+              <Link
+                href={`/register/${parsed.slug}`}
+                className="mt-2 inline-block rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover"
+              >
+                Claim this pin
+              </Link>
+            </>
+          )}
+        </div>
       </div>
     </main>
   );
@@ -302,7 +329,7 @@ function UnregisteredPin({ slug }: { slug: string }) {
       </p>
       <Link
         href={`/register/${slug}`}
-        className="mt-6 inline-block rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+        className="mt-6 inline-block rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover"
       >
         Register this pin
       </Link>

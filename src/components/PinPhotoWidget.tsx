@@ -4,6 +4,7 @@ import { useActionState, useRef, useState } from "react";
 import type { Area } from "react-easy-crop";
 import { uploadPhoto, deletePhoto, type ActionState } from "@/app/holdings/[holdingId]/actions";
 import { PhotoCropModal } from "@/app/holdings/[holdingId]/PhotoCropModal";
+import { PinPhotoFrame } from "@/components/PinPhotoFrame";
 import { cropPhotoToBlob } from "@/lib/crop-photo";
 
 // Same raw-selection sanity check as PhotoUploadForm — not the real limit,
@@ -22,11 +23,13 @@ export function PinPhotoWidget({
   slug,
   frontPhotoId,
   publicTitle,
+  pinColor,
 }: {
   holdingId: string;
   slug: string;
   frontPhotoId?: string;
   publicTitle: string;
+  pinColor?: string;
 }) {
   const [showUpload, setShowUpload] = useState(false);
 
@@ -95,47 +98,51 @@ export function PinPhotoWidget({
     uploadFormAction(formData);
   }
 
+  // Sits on the cork board (page.tsx): the photo itself is a tilted print, and
+  // the owner's controls are navy chips beneath it so they stay legible on cork.
+  const chip = "rounded-full bg-navy/90 px-3 py-1 text-xs font-medium shadow hover:bg-navy";
+
   return (
-    <div className="mt-4">
+    <div className="flex flex-col items-center gap-4">
       {frontPhotoId && !showUpload ? (
-        <div className="flex flex-col gap-2">
-          {/* eslint-disable-next-line @next/next/no-img-element -- served through a dedicated public route, not a static asset next/image can optimize */}
-          <img
-            src={`/api/pins/${slug}/photo`}
-            alt={publicTitle}
-            className="aspect-square w-full max-w-xs rounded-lg border border-neutral-200 object-cover"
-          />
-          <div className="flex gap-3">
-            <button type="button" onClick={() => setShowUpload(true)} className="text-sm text-blue-600 hover:underline">
+        <>
+          <PinPhotoFrame pinColor={pinColor}>
+            {/* eslint-disable-next-line @next/next/no-img-element -- served through a dedicated public route, not a static asset next/image can optimize */}
+            <img src={`/api/pins/${slug}/photo`} alt={publicTitle} className="size-56 object-cover" />
+          </PinPhotoFrame>
+          <div className="flex gap-2">
+            <button type="button" onClick={() => setShowUpload(true)} className={`${chip} text-accent`}>
               Replace photo
             </button>
             <form action={deletePhoto.bind(null, holdingId, frontPhotoId)}>
-              <button type="submit" className="text-sm text-red-600 hover:underline">
+              <button type="submit" className={`${chip} text-red-600`}>
                 Remove
               </button>
             </form>
           </div>
-        </div>
+        </>
       ) : !showUpload ? (
-        <div className="flex aspect-square w-full max-w-xs flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-neutral-300 bg-neutral-50 p-4 text-center">
-          <p className="text-sm text-neutral-500">Pin photo not available</p>
-          <button
-            type="button"
-            onClick={() => setShowUpload(true)}
-            className="rounded-md border border-neutral-300 bg-white px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
-          >
-            Add pin photo
-          </button>
-        </div>
+        <PinPhotoFrame pinColor={pinColor}>
+          <div className="flex size-56 flex-col items-center justify-center gap-2 bg-navy p-4 text-center">
+            <p className="text-sm text-neutral-500">Pin photo not available</p>
+            <button
+              type="button"
+              onClick={() => setShowUpload(true)}
+              className="rounded-md border border-neutral-300 bg-panel px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
+            >
+              Add pin photo
+            </button>
+          </div>
+        </PinPhotoFrame>
       ) : (
-        <div className="flex max-w-xs flex-col gap-2 rounded-lg border border-neutral-200 bg-neutral-50 p-3">
+        <div className="flex max-w-xs flex-col gap-2 rounded-lg border border-neutral-200 bg-navy p-3 shadow-lg">
           <p className="text-xs text-neutral-500">🌐 Shown publicly on this pin&apos;s page.</p>
           <div className="flex gap-2">
             <button
               type="button"
               onClick={() => openPicker("environment")}
               disabled={uploadPending}
-              className="rounded-md border border-neutral-300 bg-white px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50 disabled:opacity-60"
+              className="rounded-md border border-neutral-300 bg-panel px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50 disabled:opacity-60"
             >
               Take a photo
             </button>
@@ -143,7 +150,7 @@ export function PinPhotoWidget({
               type="button"
               onClick={() => openPicker()}
               disabled={uploadPending}
-              className="rounded-md border border-neutral-300 bg-white px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50 disabled:opacity-60"
+              className="rounded-md border border-neutral-300 bg-panel px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50 disabled:opacity-60"
             >
               Choose from library
             </button>

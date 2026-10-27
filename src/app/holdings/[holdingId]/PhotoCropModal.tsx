@@ -35,7 +35,7 @@ export function PhotoCropModal({ imageSrc, onCancel, onConfirm, pending }: Photo
           onCropComplete={handleCropComplete}
         />
       </div>
-      <div className="flex flex-col gap-3 bg-neutral-900 p-4">
+      <div className="flex flex-col gap-3 bg-navy p-4">
         <label className="flex items-center gap-2 text-sm text-white">
           Zoom
           <input
@@ -53,7 +53,7 @@ export function PhotoCropModal({ imageSrc, onCancel, onConfirm, pending }: Photo
             type="button"
             onClick={onCancel}
             disabled={pending}
-            className="rounded-md bg-white px-4 py-2 text-sm font-medium text-neutral-900 disabled:opacity-60"
+            className="rounded-md bg-cream px-4 py-2 text-sm font-medium text-navy disabled:opacity-60"
           >
             Cancel
           </button>
@@ -61,7 +61,7 @@ export function PhotoCropModal({ imageSrc, onCancel, onConfirm, pending }: Photo
             type="button"
             onClick={() => croppedAreaPixels && onConfirm(croppedAreaPixels)}
             disabled={!croppedAreaPixels || pending}
-            className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
+            className="rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-60"
           >
             {pending ? "Uploading…" : "Use this photo"}
           </button>

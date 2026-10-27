@@ -27,14 +27,21 @@ export function PinDescriptionWidget({
     if (state.status === "ok") setEditing(false);
   }
 
+  // Lives on TornPaper, so colors are ink-on-paper rather than the app's
+  // navy-theme neutrals, and every row is 28px (leading-7) to sit on the
+  // paper's ruled lines.
   if (!editing) {
     return (
-      <div className="mt-4 flex flex-col gap-2">
-        <p className="text-xs text-neutral-500">🌐 Shown publicly on this pin&apos;s page.</p>
-        <p className="whitespace-pre-wrap text-sm text-neutral-800">
-          {initialDescription || <span className="text-neutral-400">No description</span>}
+      <div className="flex flex-col">
+        <p className="font-sans text-xs leading-7 text-ink/60">🌐 Shown publicly on this pin&apos;s page.</p>
+        <p className="whitespace-pre-wrap font-hand text-[22px] leading-7 text-ink">
+          {initialDescription || <span className="text-ink/40">No description</span>}
         </p>
-        <button type="button" onClick={() => setEditing(true)} className="self-start text-sm text-blue-600 hover:underline">
+        <button
+          type="button"
+          onClick={() => setEditing(true)}
+          className="self-start font-sans text-sm font-medium leading-7 text-brand-hover underline"
+        >
           Edit
         </button>
       </div>
@@ -42,20 +49,20 @@ export function PinDescriptionWidget({
   }
 
   return (
-    <form action={formAction} className="mt-4 flex flex-col gap-2">
-      <p className="text-xs text-neutral-500">🌐 Shown publicly on this pin&apos;s page.</p>
+    <form action={formAction} className="flex flex-col">
+      <p className="font-sans text-xs leading-7 text-ink/60">🌐 Shown publicly on this pin&apos;s page.</p>
       <textarea
         name="description"
-        rows={3}
+        rows={4}
         defaultValue={initialDescription}
         placeholder="Tell visitors about this pin (optional)"
-        className="rounded-md border border-neutral-300 px-2 py-1.5 text-sm"
+        className="w-full resize-none bg-transparent font-hand text-[22px] leading-7 text-ink placeholder:text-ink/40 focus:outline-none"
       />
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 py-0.5">
         <button
           type="submit"
           disabled={pending}
-          className="rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-60"
+          className="rounded-md bg-brand px-3 py-1 font-sans text-xs font-medium text-white hover:bg-brand-hover disabled:opacity-60"
         >
           {pending ? "Saving…" : "Save"}
         </button>
@@ -63,12 +70,12 @@ export function PinDescriptionWidget({
           type="button"
           onClick={() => setEditing(false)}
           disabled={pending}
-          className="rounded-md px-3 py-1.5 text-xs font-medium text-neutral-600 hover:bg-neutral-100 disabled:opacity-60"
+          className="rounded-md px-3 py-1 font-sans text-xs font-medium text-ink/70 hover:bg-ink/10 disabled:opacity-60"
         >
           Cancel
         </button>
       </div>
-      {state.status === "error" && <p className="text-xs text-red-600">{state.message}</p>}
+      {state.status === "error" && <p className="font-sans text-xs leading-7 text-red-700">{state.message}</p>}
     </form>
   );
 }

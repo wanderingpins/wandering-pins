@@ -46,7 +46,7 @@ export default async function SeriesDetailPage({ params, searchParams }: Props) 
 
   return (
     <main className="mx-auto max-w-2xl px-4 py-10">
-      <Link href="/series" className="text-sm text-neutral-500 hover:text-black">
+      <Link href="/series" className="text-sm text-neutral-500 hover:text-white">
         &larr; All series
       </Link>
       <h1 className="mt-2 text-2xl font-semibold">{series.name}</h1>
@@ -102,14 +102,14 @@ export default async function SeriesDetailPage({ params, searchParams }: Props) 
                     {canLinkPin && <input type="hidden" name="linkedPinId" value={linkPin} />}
                     <button
                       type="submit"
-                      className="whitespace-nowrap rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700"
+                      className="whitespace-nowrap rounded-md bg-brand px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-hover"
                     >
                       I have this
                     </button>
                   </form>
                 )
               ) : (
-                <Link href="/sign-in" className="whitespace-nowrap text-xs text-blue-600 hover:underline">
+                <Link href="/sign-in" className="whitespace-nowrap text-xs text-accent hover:underline">
                   Sign in to claim
                 </Link>
               )}

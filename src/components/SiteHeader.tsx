@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { HeaderLogo } from "@/components/HeaderLogo";
 import { getAuthClaims } from "@/lib/auth";
 import { BEST_EFFORT_AUTH_TIMEOUT_MS } from "@/lib/with-timeout";
 
@@ -11,40 +12,38 @@ export async function SiteHeader() {
   const claims = await getAuthClaims(BEST_EFFORT_AUTH_TIMEOUT_MS);
 
   return (
-    <header className="flex items-center justify-between border-b border-neutral-200 px-4 py-3">
-      <Link href="/" className="text-sm font-semibold">
-        Wandering Pins
-      </Link>
+    <header className="flex items-center justify-between border-b border-neutral-200 px-4 py-1.5">
+      <HeaderLogo />
       {claims ? (
         <div className="flex items-center gap-4">
-          <Link href="/pins" className="text-sm font-medium text-neutral-700 hover:text-black">
+          <Link href="/pins" className="text-sm font-medium text-neutral-700 hover:text-white">
             Browse pins
           </Link>
-          <Link href="/series" className="text-sm font-medium text-neutral-700 hover:text-black">
+          <Link href="/series" className="text-sm font-medium text-neutral-700 hover:text-white">
             Series
           </Link>
-          <Link href="/my-pins" className="text-sm font-medium text-neutral-700 hover:text-black">
+          <Link href="/my-pins" className="text-sm font-medium text-neutral-700 hover:text-white">
             My pins
           </Link>
-          <Link href="/settings" className="text-sm font-medium text-neutral-700 hover:text-black">
+          <Link href="/settings" className="text-sm font-medium text-neutral-700 hover:text-white">
             Settings
           </Link>
           <form action="/auth/sign-out" method="post" className="flex items-center gap-3">
             <span className="text-sm text-neutral-600">{claims.email}</span>
-            <button type="submit" className="text-sm font-medium text-neutral-700 hover:text-black">
+            <button type="submit" className="text-sm font-medium text-neutral-700 hover:text-white">
               Sign out
             </button>
           </form>
         </div>
       ) : (
         <div className="flex items-center gap-4">
-          <Link href="/pins" className="text-sm font-medium text-neutral-700 hover:text-black">
+          <Link href="/pins" className="text-sm font-medium text-neutral-700 hover:text-white">
             Browse pins
           </Link>
-          <Link href="/series" className="text-sm font-medium text-neutral-700 hover:text-black">
+          <Link href="/series" className="text-sm font-medium text-neutral-700 hover:text-white">
             Series
           </Link>
-          <Link href="/sign-in" className="text-sm font-medium text-blue-600 hover:text-blue-700">
+          <Link href="/sign-in" className="text-sm font-medium text-accent hover:text-accent-hover">
             Sign in
           </Link>
         </div>

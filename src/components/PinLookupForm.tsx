@@ -26,12 +26,12 @@ export function PinLookupForm() {
           value={code}
           onChange={(e) => setCode(e.target.value)}
           placeholder="Type the code, e.g. K7M2-QX9"
-          className="flex-1 rounded-md border border-neutral-300 px-3 py-2 text-sm"
+          className="min-w-0 flex-1 rounded-md border border-neutral-300 px-3 py-2 text-sm"
           aria-label="Pin code"
         />
         <button
           type="submit"
-          className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+          className="whitespace-nowrap rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover"
         >
           Find it
         </button>

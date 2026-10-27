@@ -107,7 +107,7 @@ export function QrScanButton({ onScan }: QrScanButtonProps) {
           <button
             type="button"
             onClick={() => setOpen(false)}
-            className="rounded-md bg-white px-4 py-2 text-sm font-medium text-neutral-900"
+            className="rounded-md bg-cream px-4 py-2 text-sm font-medium text-navy"
           >
             Cancel
           </button>

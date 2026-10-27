@@ -1,26 +1,77 @@
 @import "tailwindcss";
 
+/* Brand palette — see design/README.md. The app is navy by default; the front
+   page alone sits on the cork board (src/components/CorkBoard.tsx). */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  color-scheme: dark;
+  --background: #17323d;
+  --foreground: #f5ede0;
+}
+
+@theme {
+  --color-navy: #17323d;
+  --color-panel: #1f4150;
+  --color-orange: #d06a2e;
+  --color-teal: #35948a;
+  --color-gold: #d9b441;
+  --color-gold-dark: #8e6e14;
+  --color-cream: #f5ede0;
+  --color-cork-frame: #5e3a1c;
+  --color-cork-ink: #3e250f;
+
+  /* Binder paper on the pin page (src/components/TornPaper.tsx). */
+  --color-paper: #fbfaf4;
+  --color-ink: #1c3d5a;
+
+  /* Buttons/links. Orange itself is only ~3.6:1 against white text, so the
+     filled button uses a deeper shade; link text on navy uses a lighter one. */
+  --color-brand: #b85a24;
+  --color-brand-hover: #9a4a1b;
+  --color-accent: #f0a06a;
+  --color-accent-hover: #f7b88c;
+
+  /* The pages were written against Tailwind's light-theme grays. Rather than
+     touch ~250 call sites, the scale is re-tuned for navy: 50-300 become
+     surfaces/borders (lifted off the background), 400-900 become text from
+     muted blue-gray up to cream. */
+  --color-neutral-50: #1d3d4a;
+  --color-neutral-100: #234755;
+  --color-neutral-200: #2e5565;
+  --color-neutral-300: #46707f;
+  --color-neutral-400: #8ca3ab;
+  --color-neutral-500: #9db1b8;
+  --color-neutral-600: #b3c4c9;
+  --color-neutral-700: #ccd9dc;
+  --color-neutral-800: #e4ebed;
+  --color-neutral-900: #f5ede0;
+  --color-neutral-950: #fbf6ee;
+
+  /* Status text re-tuned for contrast on navy. */
+  --color-red-600: #ff8f80;
+  --color-green-700: #7fd6a0;
+  --color-amber-50: #3b3522;
+  --color-amber-800: #f2d27a;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
+  --font-sans: var(--font-space-grotesk);
+  --font-display: var(--font-bricolage);
+  --font-hand: var(--font-handwriting);
   --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans), system-ui, sans-serif;
+}
+
+@layer base {
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display), system-ui, sans-serif;
+  }
 }

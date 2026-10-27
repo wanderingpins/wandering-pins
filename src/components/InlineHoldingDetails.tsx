@@ -129,7 +129,7 @@ export function InlineHoldingDetails({
       )}
 
       {!expanded ? (
-        <button type="button" onClick={() => setExpanded(true)} className="self-start text-sm text-blue-600 hover:underline">
+        <button type="button" onClick={() => setExpanded(true)} className="self-start text-sm text-accent hover:underline">
           {hasDetails ? "Edit details" : "Add details"}
         </button>
       ) : (
@@ -144,13 +144,13 @@ export function InlineHoldingDetails({
               rows={3}
               defaultValue={initialNotes}
               placeholder="What happened here? (optional)"
-              className="rounded-md border border-neutral-300 bg-white px-2 py-1.5 text-sm"
+              className="rounded-md border border-neutral-300 bg-panel px-2 py-1.5 text-sm"
             />
             <div className="flex items-center gap-2">
               <button
                 type="submit"
                 disabled={notePending}
-                className="rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-60"
+                className="rounded-md bg-brand px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-hover disabled:opacity-60"
               >
                 {notePending ? "Saving…" : "Save"}
               </button>
@@ -194,7 +194,7 @@ export function InlineHoldingDetails({
               type="button"
               onClick={() => openPicker("environment")}
               disabled={uploadPending}
-              className="rounded-md border border-neutral-300 bg-white px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50 disabled:opacity-60"
+              className="rounded-md border border-neutral-300 bg-panel px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50 disabled:opacity-60"
             >
               Take a photo
             </button>
@@ -202,7 +202,7 @@ export function InlineHoldingDetails({
               type="button"
               onClick={() => openPicker()}
               disabled={uploadPending}
-              className="rounded-md border border-neutral-300 bg-white px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50 disabled:opacity-60"
+              className="rounded-md border border-neutral-300 bg-panel px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50 disabled:opacity-60"
             >
               Choose from library
             </button>

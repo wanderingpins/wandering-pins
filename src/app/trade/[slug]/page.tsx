@@ -51,7 +51,7 @@ export default async function TradePage({ params }: Props) {
       <form action={releasePin.bind(null, pin.slug)} className="mt-6">
         <button
           type="submit"
-          className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+          className="rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover"
         >
           I traded this pin away
         </button>

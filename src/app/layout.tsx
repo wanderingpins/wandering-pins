@@ -1,11 +1,23 @@
-import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import type { Metadata, Viewport } from "next";
+import { Bricolage_Grotesque, Caveat, Geist_Mono, Space_Grotesk } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
 import { SiteHeader } from "@/components/SiteHeader";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+// Brand fonts: Bricolage Grotesque for the logo/headings, Space Grotesk for UI text.
+const bricolage = Bricolage_Grotesque({
+  variable: "--font-bricolage",
+  subsets: ["latin"],
+});
+
+const spaceGrotesk = Space_Grotesk({
+  variable: "--font-space-grotesk",
+  subsets: ["latin"],
+});
+
+// Handwriting for the pin description on its torn binder-paper note.
+const caveat = Caveat({
+  variable: "--font-handwriting",
   subsets: ["latin"],
 });
 
@@ -19,11 +31,15 @@ export const metadata: Metadata = {
   description: "Every pin has a journey. Scan the code on the back to see where it's been.",
 };
 
+export const viewport: Viewport = {
+  themeColor: "#17323D",
+};
+
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${bricolage.variable} ${spaceGrotesk.variable} ${caveat.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
         <SiteHeader />
