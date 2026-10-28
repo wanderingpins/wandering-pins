@@ -13,6 +13,7 @@ import { InlineHoldingDetails } from "@/components/InlineHoldingDetails";
 import { InlineCheckInDetails } from "@/components/InlineCheckInDetails";
 import { CorkBoard } from "@/components/CorkBoard";
 import { PinNamePill } from "@/components/PinNamePill";
+import { PinTitleWidget } from "@/components/PinTitleWidget";
 import { PinPhotoFrame } from "@/components/PinPhotoFrame";
 import { PinPhotoWidget } from "@/components/PinPhotoWidget";
 import { PinNote } from "@/components/PinNote";
@@ -213,7 +214,11 @@ export default async function PinPage({ params }: Props) {
       <PinEditProvider>
         <CorkBoard className="px-4 py-8 sm:py-10">
           <div className="mx-auto flex w-full max-w-5xl flex-col items-center gap-10">
-            <PinNamePill>{publicTitle}</PinNamePill>
+            {isCurrentHolder ? (
+              <PinTitleWidget holdingId={openHolding!.id} title={publicTitle} />
+            ) : (
+              <PinNamePill>{publicTitle}</PinNamePill>
+            )}
 
             {/* Photo centered on the board; description note in the lower right;
                 the edit sticker beside the photo. Below lg they stack in that

@@ -117,6 +117,40 @@ export async function updateDescription(holdingId: string, _prevState: ActionSta
   return { status: "ok" };
 }
 
+const MAX_TITLE_LENGTH = 80;
+
+// Narrower than updateHoldingDetails — touches only PinTitle's title, leaving
+// the description alone. Used by the name pill on /p/[slug] (src/components/
+// PinTitleWidget.tsx) in edit mode. Revalidates the pin page itself, since
+// that's the page the holder is looking at.
+export async function updateTitle(holdingId: string, _prevState: ActionState, formData: FormData): Promise<ActionState> {
+  const user = await requireAppUser(`/holdings/${holdingId}`);
+  const holding = await getOwnedHolding(holdingId, user.id);
+  if (!holding) {
+    return { status: "error", message: "That's not your holding." };
+  }
+
+  const title = (formData.get("title") as string | null)?.trim() ?? "";
+  if (title.length > MAX_TITLE_LENGTH) {
+    return { status: "error", message: `Keep the name to ${MAX_TITLE_LENGTH} characters or fewer.` };
+  }
+  const existing = await prisma.pinTitle.findUnique({ where: { holdingId } });
+
+  if (title) {
+    await prisma.pinTitle.upsert({ where: { holdingId }, update: { title }, create: { holdingId, title } });
+  } else if (existing?.description) {
+    // Keep the row for its description — a blank title just shows as "Untitled Pin".
+    await prisma.pinTitle.update({ where: { holdingId }, data: { title: "" } });
+  } else {
+    await prisma.pinTitle.deleteMany({ where: { holdingId } });
+  }
+
+  const pin = await prisma.pin.findUnique({ where: { id: holding.pinId }, select: { slug: true } });
+  if (pin) revalidatePath(`/p/${pin.slug}`);
+  revalidatePath(`/holdings/${holdingId}`);
+  return { status: "ok" };
+}
+
 const kindSchema = z.enum(["FRONT", "BACK", "OTHER"]);
 
 export async function uploadPhoto(holdingId: string, _prevState: ActionState, formData: FormData): Promise<ActionState> {
