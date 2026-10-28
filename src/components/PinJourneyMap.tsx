@@ -50,7 +50,7 @@ export function PinJourneyMap({ points }: { points: JourneyPoint[] }) {
           id: "journey-line",
           type: "line",
           source: "journey-line",
-          paint: { "line-color": "#2563eb", "line-width": 2, "line-dasharray": [2, 2] },
+          paint: { "line-color": "#b85a24", "line-width": 3, "line-dasharray": [2, 2] },
         });
       }
 

@@ -2,6 +2,8 @@
 
 import { useActionState, useRef, useState } from "react";
 import { useEditMode } from "@/components/PinEditMode";
+import { JournalPhoto } from "@/components/JournalPhoto";
+import { journalPhotoTilt } from "@/lib/pin-card-style";
 import type { Area } from "react-easy-crop";
 import { updateHoldingNote, uploadPhoto, deletePhoto, type ActionState } from "@/app/holdings/[holdingId]/actions";
 import { PhotoCropModal } from "@/app/holdings/[holdingId]/PhotoCropModal";
@@ -112,21 +114,16 @@ export function InlineHoldingDetails({
   return (
     <div className="flex flex-col gap-2">
       {!open && hasDetails && (
-        <div className="flex flex-col gap-2 rounded-lg border border-neutral-200 bg-neutral-50 p-3">
-          <p className="inline-flex w-fit items-center gap-1.5 rounded-full bg-neutral-100 px-2.5 py-0.5 text-xs font-medium text-neutral-600">
+        <div className="flex flex-col gap-3">
+          <p className="inline-flex w-fit items-center gap-1.5 rounded-full bg-ink/10 px-2.5 py-0.5 text-xs font-medium text-ink/70">
             🔒 Only you can see this
           </p>
-          {initialNotes && <p className="whitespace-pre-wrap text-sm text-neutral-800">{initialNotes}</p>}
+          {initialNotes && <p className="whitespace-pre-wrap font-hand text-[22px] leading-7 text-ink">{initialNotes}</p>}
           {photos.length > 0 && (
-            <ul className="grid grid-cols-4 gap-2">
+            <ul className="flex flex-wrap gap-4 pt-2">
               {photos.map((photo) => (
                 <li key={photo.id}>
-                  {/* eslint-disable-next-line @next/next/no-img-element -- private, per-user image behind an auth-gated route */}
-                  <img
-                    src={`/api/holdings/${holdingId}/photos/${photo.id}`}
-                    alt=""
-                    className="aspect-square w-full rounded-md object-cover"
-                  />
+                  <JournalPhoto src={`/api/holdings/${holdingId}/photos/${photo.id}`} tilt={journalPhotoTilt(photo.id)} />
                 </li>
               ))}
             </ul>
@@ -136,13 +133,13 @@ export function InlineHoldingDetails({
 
       {!open ? (
         editing && (
-          <button type="button" onClick={() => setExpanded(true)} className="self-start text-sm text-accent hover:underline">
+          <button type="button" onClick={() => setExpanded(true)} className="self-start text-sm font-medium text-brand underline hover:text-brand-hover">
             {hasDetails ? "Edit details" : "Add details"}
           </button>
         )
       ) : (
-        <div className="flex flex-col gap-3 rounded-lg border border-neutral-200 bg-neutral-50 p-3">
-          <p className="inline-flex w-fit items-center gap-1.5 rounded-full bg-neutral-100 px-2.5 py-0.5 text-xs font-medium text-neutral-600">
+        <div className="flex flex-col gap-3">
+          <p className="inline-flex w-fit items-center gap-1.5 rounded-full bg-ink/10 px-2.5 py-0.5 text-xs font-medium text-ink/70">
             🔒 Only you can see this
           </p>
 
@@ -152,7 +149,7 @@ export function InlineHoldingDetails({
               rows={3}
               defaultValue={initialNotes}
               placeholder="What happened here? (optional)"
-              className="rounded-md border border-neutral-300 bg-panel px-2 py-1.5 text-sm"
+              className="rounded-md border border-ink/30 bg-white/70 px-2 py-1.5 font-hand text-xl leading-6 text-ink placeholder:text-ink/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand"
             />
             <div className="flex items-center gap-2">
               <button
@@ -166,24 +163,19 @@ export function InlineHoldingDetails({
                 type="button"
                 onClick={() => setExpanded(false)}
                 disabled={notePending}
-                className="rounded-md px-3 py-1.5 text-xs font-medium text-neutral-600 hover:bg-neutral-100 disabled:opacity-60"
+                className="rounded-md px-3 py-1.5 text-xs font-medium text-ink/70 hover:bg-ink/10 disabled:opacity-60"
               >
                 Cancel
               </button>
             </div>
-            {noteState.status === "error" && <p className="text-xs text-red-600">{noteState.message}</p>}
+            {noteState.status === "error" && <p className="text-xs text-red-700">{noteState.message}</p>}
           </form>
 
           {photos.length > 0 && (
-            <ul className="grid grid-cols-4 gap-2">
+            <ul className="flex flex-wrap gap-4 pt-2">
               {photos.map((photo) => (
-                <li key={photo.id} className="relative">
-                  {/* eslint-disable-next-line @next/next/no-img-element -- private, per-user image behind an auth-gated route */}
-                  <img
-                    src={`/api/holdings/${holdingId}/photos/${photo.id}`}
-                    alt=""
-                    className="aspect-square w-full rounded-md object-cover"
-                  />
+                <li key={photo.id}>
+                  <JournalPhoto src={`/api/holdings/${holdingId}/photos/${photo.id}`} tilt={journalPhotoTilt(photo.id)}>
                   <form action={deletePhoto.bind(null, holdingId, photo.id)} className="absolute right-1 top-1">
                     <button
                       type="submit"
@@ -192,6 +184,7 @@ export function InlineHoldingDetails({
                       &times;
                     </button>
                   </form>
+                  </JournalPhoto>
                 </li>
               ))}
             </ul>
@@ -202,7 +195,7 @@ export function InlineHoldingDetails({
               type="button"
               onClick={() => openPicker("environment")}
               disabled={uploadPending}
-              className="rounded-md border border-neutral-300 bg-panel px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50 disabled:opacity-60"
+              className="rounded-md border border-ink/30 bg-white/60 px-3 py-1.5 text-xs font-medium text-ink hover:bg-white disabled:opacity-60"
             >
               Take a photo
             </button>
@@ -210,7 +203,7 @@ export function InlineHoldingDetails({
               type="button"
               onClick={() => openPicker()}
               disabled={uploadPending}
-              className="rounded-md border border-neutral-300 bg-panel px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50 disabled:opacity-60"
+              className="rounded-md border border-ink/30 bg-white/60 px-3 py-1.5 text-xs font-medium text-ink hover:bg-white disabled:opacity-60"
             >
               Choose from library
             </button>
@@ -223,9 +216,9 @@ export function InlineHoldingDetails({
             className="hidden"
           />
 
-          {uploadPending && <p className="text-xs text-neutral-500">Uploading…</p>}
-          {pickError && <p className="text-xs text-red-600">{pickError}</p>}
-          {uploadState.status === "error" && <p className="text-xs text-red-600">{uploadState.message}</p>}
+          {uploadPending && <p className="text-xs text-ink/60">Uploading…</p>}
+          {pickError && <p className="text-xs text-red-700">{pickError}</p>}
+          {uploadState.status === "error" && <p className="text-xs text-red-700">{uploadState.message}</p>}
 
           {imageSrc && (
             <PhotoCropModal imageSrc={imageSrc} onCancel={closeCropper} onConfirm={handleCropConfirm} pending={uploadPending} />

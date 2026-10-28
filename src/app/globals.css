@@ -59,6 +59,7 @@
   --font-sans: var(--font-space-grotesk);
   --font-display: var(--font-bricolage);
   --font-hand: var(--font-handwriting);
+  --font-block: var(--font-titan);
   --font-mono: var(--font-geist-mono);
 }
 

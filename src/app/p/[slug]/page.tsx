@@ -4,11 +4,19 @@ import { prisma } from "@/lib/prisma";
 import { parseSlug } from "@/lib/slug";
 import { getAuthClaims } from "@/lib/auth";
 import { BEST_EFFORT_AUTH_TIMEOUT_MS } from "@/lib/with-timeout";
-import { buildJourneyRows, resolveHolderDisplayName } from "@/lib/timeline";
+import {
+  acquisitionKicker,
+  buildJourneyRows,
+  CHECK_IN_KICKER,
+  formatMonthYear,
+  resolveHolderDisplayName,
+} from "@/lib/timeline";
 import { toPublicHolding, toPublicCheckIn } from "@/lib/public-pin";
 import { pinCardStyle } from "@/lib/pin-card-style";
 import { PinJourneyTimeline, type TimelineLine } from "@/components/PinJourneyTimeline";
 import { PinJourneyMap } from "@/components/PinJourneyMap";
+import { MapFrame } from "@/components/MapFrame";
+import { VerifiedStar } from "@/components/VerifiedStar";
 import { InlineHoldingDetails } from "@/components/InlineHoldingDetails";
 import { InlineCheckInDetails } from "@/components/InlineCheckInDetails";
 import { CorkBoard } from "@/components/CorkBoard";
@@ -170,10 +178,13 @@ export default async function PinPage({ params }: Props) {
       const isOwn = claims?.sub === h.userId;
       return {
         key: `holding-${row.id}`,
-        text: row.line,
-        badge: (
-          <VerifyLocationButton verified={h.verified} isOwn={isOwn} onVerify={verifyHoldingLocation.bind(null, h.id)} />
-        ),
+        date: formatMonthYear(h.acquiredAt),
+        kicker: acquisitionKicker(h.acquiredVia),
+        place: h.placeLabel,
+        holder: resolveHolderDisplayName(h.user),
+        star: h.verified ? <VerifiedStar /> : undefined,
+        badge:
+          !h.verified && isOwn ? <VerifyLocationButton onVerify={verifyHoldingLocation.bind(null, h.id)} /> : undefined,
         action: isOwn ? (
           <InlineHoldingDetails
             holdingId={h.id}
@@ -191,14 +202,13 @@ export default async function PinPage({ params }: Props) {
     const isOwn = claims?.sub === holding.userId;
     return {
       key: `checkin-${row.id}`,
-      text: row.line,
-      badge: (
-        <VerifyLocationButton
-          verified={checkIn.verified}
-          isOwn={isOwn}
-          onVerify={verifyCheckInLocation.bind(null, checkIn.id)}
-        />
-      ),
+      date: formatMonthYear(checkIn.loggedAt),
+      kicker: CHECK_IN_KICKER,
+      place: checkIn.placeLabel,
+      holder: resolveHolderDisplayName(holding.user),
+      star: checkIn.verified ? <VerifiedStar /> : undefined,
+      badge:
+        !checkIn.verified && isOwn ? <VerifyLocationButton onVerify={verifyCheckInLocation.bind(null, checkIn.id)} /> : undefined,
       action: isOwn ? (
         <InlineCheckInDetails
           checkInId={checkIn.id}
@@ -286,21 +296,21 @@ export default async function PinPage({ params }: Props) {
             )
           )}
 
-          <h2 className="mt-6 text-2xl font-semibold">Its journey so far</h2>
+          <h2 className="mt-6 text-center font-block text-4xl text-cream [text-shadow:3px_3px_0_#D06A2E] sm:text-5xl">
+            Where I&apos;ve Wandered
+          </h2>
 
-          <div className="mt-4">
-            <PinJourneyMap points={points} />
+          <div className="mt-6">
+            <MapFrame>
+              <PinJourneyMap points={points} />
+            </MapFrame>
           </div>
 
-          <div className="mt-8">
-            <PinJourneyTimeline lines={timelineLines} />
-          </div>
-
-          <div className="mt-10 rounded-lg border border-neutral-200 p-4">
-            {isCurrentHolder ? (
-              <>
-                <p className="text-sm text-neutral-700">This pin is currently in your hands.</p>
-                <div className="mt-2 flex flex-wrap gap-2">
+          <PinJourneyTimeline
+            lines={timelineLines}
+            end={
+              isCurrentHolder ? (
+                <div className="flex flex-wrap gap-2">
                   <Link
                     href={`/holdings/${openHolding!.id}#locations`}
                     className="inline-block rounded-md border border-neutral-300 px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
@@ -314,23 +324,23 @@ export default async function PinPage({ params }: Props) {
                     Log a trade
                   </Link>
                 </div>
-              </>
-            ) : ownPendingHolding ? (
-              <p className="text-sm text-neutral-700">
-                ⏳ Your claim on this pin is pending — it&apos;ll join this journey once the current holder releases it.
-              </p>
-            ) : (
-              <>
-                <p className="text-sm text-neutral-700">Think you have this pin now?</p>
-                <Link
-                  href={`/register/${parsed.slug}`}
-                  className="mt-2 inline-block rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover"
-                >
-                  Claim this pin
-                </Link>
-              </>
-            )}
-          </div>
+              ) : ownPendingHolding ? (
+                <p className="text-sm text-neutral-700">
+                  ⏳ Your claim on this pin is pending — it&apos;ll join this journey once the current holder releases it.
+                </p>
+              ) : (
+                <div>
+                  <p className="text-sm text-neutral-700">Think you have this pin now?</p>
+                  <Link
+                    href={`/register/${parsed.slug}`}
+                    className="mt-2 inline-block rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover"
+                  >
+                    Claim this pin
+                  </Link>
+                </div>
+              )
+            }
+          />
         </div>
       </PinEditProvider>
     </main>

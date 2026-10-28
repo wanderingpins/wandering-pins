@@ -1,5 +1,22 @@
 import { describe, expect, it } from "vitest";
-import { buildJourneyRows, checkInToProse, formatMonthYear, holdingToProse, resolveHolderDisplayName } from "./timeline";
+import {
+  acquisitionKicker,
+  buildJourneyRows,
+  CHECK_IN_KICKER,
+  checkInToProse,
+  formatMonthYear,
+  holdingToProse,
+  resolveHolderDisplayName,
+} from "./timeline";
+
+describe("journal sticker kickers", () => {
+  it("match the verbs used in the prose lines", () => {
+    expect(acquisitionKicker("BOUGHT")).toBe("Bought in");
+    expect(acquisitionKicker("TRADED")).toBe("Traded in");
+    expect(acquisitionKicker("GIFT")).toBe("Gifted in");
+    expect(CHECK_IN_KICKER).toBe("Spotted in");
+  });
+});
 
 describe("formatMonthYear", () => {
   it("formats as 'Month YYYY'", () => {

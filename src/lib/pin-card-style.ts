@@ -63,6 +63,38 @@ function tiltFor(slug: string, salt: string, max = MAX_TILT): number {
   return Math.round((unit * 2 - 1) * max * 10) / 10;
 }
 
+// The journey journal on the pin page: each entry (a holding or a check-in) is
+// keyed by its row key, each photo by its id, so everything keeps the same look
+// on every visit. Stickers are slapped on crookedly, the pages barely tilt, and
+// photos lean up to the same +/-5 as the pinned ones.
+const JOURNAL_STICKER_TILT = 4;
+const JOURNAL_PAGE_TILT = 1;
+
+export type JournalEntryStyle = {
+  stickerColor: string;
+  stickerTilt: number;
+  pinColor: string;
+  pageTilt: number;
+  /** Which of the dotted trail's wiggles runs down from this entry's pin. */
+  trailVariant: number;
+};
+
+export const JOURNAL_TRAIL_VARIANTS = 3;
+
+export function journalEntryStyle(key: string): JournalEntryStyle {
+  return {
+    stickerColor: PIN_STICKER_COLORS[hash(`${key}:journal-sticker`) % PIN_STICKER_COLORS.length],
+    stickerTilt: tiltFor(key, "journal-sticker", JOURNAL_STICKER_TILT),
+    pinColor: PIN_PUSHPIN_COLORS[hash(`${key}:journal-pin`) % PIN_PUSHPIN_COLORS.length],
+    pageTilt: tiltFor(key, "journal-page", JOURNAL_PAGE_TILT),
+    trailVariant: hash(`${key}:journal-trail`) % JOURNAL_TRAIL_VARIANTS,
+  };
+}
+
+export function journalPhotoTilt(photoId: string): number {
+  return tiltFor(photoId, "journal-photo");
+}
+
 export type PinCardStyle = {
   color: string;
   photoTilt: number;

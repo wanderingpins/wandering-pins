@@ -18,6 +18,13 @@ const VERB: Record<AcquiredVia, string> = {
   OTHER: "Acquired",
 };
 
+// The journal sticker's small top line: "Bought in", "Traded in", ... then the place.
+export function acquisitionKicker(acquiredVia: AcquiredVia): string {
+  return `${VERB[acquiredVia]} in`;
+}
+
+export const CHECK_IN_KICKER = "Spotted in";
+
 // acquired_at is a calendar date with no meaningful time-of-day — format in
 // UTC so the displayed month doesn't shift with the server/browser's local
 // timezone (e.g. a March 1 UTC date reading as "February" west of Greenwich).

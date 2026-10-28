@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Bricolage_Grotesque, Caveat, Geist_Mono, Space_Grotesk } from "next/font/google";
+import { Bricolage_Grotesque, Caveat, Geist_Mono, Space_Grotesk, Titan_One } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
 import { SiteHeader } from "@/components/SiteHeader";
 import "./globals.css";
@@ -21,6 +21,13 @@ const caveat = Caveat({
   subsets: ["latin"],
 });
 
+// Chunky, kid's-coloring-page lettering for the "Where I've Wandered" heading.
+const titanOne = Titan_One({
+  variable: "--font-titan",
+  weight: "400",
+  subsets: ["latin"],
+});
+
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
@@ -39,7 +46,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
-      className={`${bricolage.variable} ${spaceGrotesk.variable} ${caveat.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${bricolage.variable} ${spaceGrotesk.variable} ${caveat.variable} ${titanOne.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
         <SiteHeader />

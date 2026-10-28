@@ -1,38 +1,16 @@
 "use client";
 
 import { useState } from "react";
-import { useEditMode } from "@/components/PinEditMode";
 
 type VerifyFn = (lat: number, lng: number) => Promise<{ status: "ok" | "error"; message?: string }>;
 
-// Shown next to a journey line's place — public either way (anyone can see
-// whether a location is verified), but only that line's owner gets a
-// clickable button, since verifying requires *their* device's current
-// position. TODO(product): swap the text label for a dedicated icon once
-// one exists — plain text for now.
-export function VerifyLocationButton({
-  verified,
-  isOwn,
-  onVerify,
-}: {
-  verified: boolean;
-  isOwn: boolean;
-  onVerify: VerifyFn;
-}) {
+// The "Verify location" link on an unverified journey entry, shown to that
+// entry's owner only (verifying needs *their* device's current position, so
+// there's nothing for anyone else to click). Verified entries get the star
+// sticker instead (VerifiedStar), rendered by the page.
+export function VerifyLocationButton({ onVerify }: { onVerify: VerifyFn }) {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // Verifying changes the page, so like the other owner controls it only
-  // appears in edit mode; otherwise the owner sees the plain label too.
-  const editing = useEditMode();
-  const canVerify = isOwn && editing;
-
-  if (verified) {
-    return <span className="text-xs text-green-700">✅ Location verified</span>;
-  }
-
-  if (!canVerify) {
-    return <span className="text-xs text-neutral-400">Not verified</span>;
-  }
 
   function handleClick() {
     setPending(true);
@@ -50,7 +28,7 @@ export function VerifyLocationButton({
         if (result.status === "error") {
           setError(result.message ?? "Location couldn't be verified.");
         }
-        // On success, the parent's `verified` prop flips to true once this
+        // On success, the page re-renders this entry with its star once this
         // server action's revalidation lands — no local "verified" state
         // needed here.
         setPending(false);
@@ -69,11 +47,11 @@ export function VerifyLocationButton({
         type="button"
         onClick={handleClick}
         disabled={pending}
-        className="text-xs text-neutral-500 underline hover:text-neutral-700 disabled:opacity-60"
+        className="text-sm font-medium text-brand underline hover:text-brand-hover disabled:opacity-60"
       >
-        {pending ? "Checking…" : "Not verified"}
+        {pending ? "Checking…" : "Verify location"}
       </button>
-      {error && <span className="text-xs text-red-600">{error}</span>}
+      {error && <span className="text-xs text-red-700">{error}</span>}
     </span>
   );
 }
