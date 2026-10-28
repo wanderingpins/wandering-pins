@@ -5,7 +5,7 @@ import { updateDescription, type ActionState } from "@/app/holdings/[holdingId]/
 import { useEditMode } from "@/components/PinEditMode";
 
 // The pin's public description, on the torn paper note. Only ever rendered for
-// the current holder (gated by the caller — PinNote, from /p/[slug]). Outside
+// the current holder (gated by the caller — PinNote, from /p/[number]). Outside
 // edit mode it's just the handwritten text; once the owner presses the "Edit
 // pin information" sticker the textarea is there straight away, with no second
 // "Edit" click.

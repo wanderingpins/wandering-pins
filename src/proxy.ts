@@ -4,10 +4,13 @@ import { normalizeSlugInput } from "@/lib/slug";
 import { exchangeStrayAuthCode, updateSession } from "@/lib/supabase/proxy";
 import { getClientIp, isRateLimited } from "@/lib/rate-limit";
 
-const PIN_PATH = /^\/p\/([^/]+)$/;
+// The scan page — the one place a sticker code is a credential, and so the
+// one pin route worth guessing at (/p/{number} is public and enumerable by
+// design, and is not rate-limited here).
+const PIN_PATH = /^\/s\/([^/]+)$/;
 // The public pins database (/pins) — one request here can return a summary
-// of every registered pin instead of just one, making it a more efficient
-// scrape target than /p/{slug} itself, so it gets the same per-IP budget.
+// of every pin instead of just one, making it a more efficient scrape
+// target than a single pin page, so it gets the same per-IP budget.
 const DIRECTORY_PATH = /^\/pins$/;
 // The series catalog (/series, /series/{id}) — same reasoning as /pins:
 // public, no-auth reads that can return a whole series' claimant list in
@@ -34,14 +37,14 @@ export async function proxy(request: NextRequest) {
   }
 
   // Canonicalisation on the app itself (brief section 4): someone can land
-  // on /p/{slug} directly (typed, bookmarked, shared) without going through
+  // on /s/{code} directly (typed, bookmarked, shared) without going through
   // wpins.co. If casing/look-alikes differ from the canonical form, fix the
   // address bar rather than silently resolving.
   const match = request.nextUrl.pathname.match(PIN_PATH);
   if (match) {
     const normalized = normalizeSlugInput(match[1]);
     if (normalized !== match[1]) {
-      return NextResponse.redirect(new URL(`/p/${normalized}`, request.url), 302);
+      return NextResponse.redirect(new URL(`/s/${normalized}`, request.url), 302);
     }
 
     // Compensating control for the check-digit spending a character on

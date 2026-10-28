@@ -1,4 +1,4 @@
-// Mints a sticker batch: N unique MINTED pins in the DB, plus a Version-1
+// Mints a sticker batch: N unique unattached stickers in the DB, plus a Version-1
 // QR PNG per slug and a manifest CSV, ready to hand to a sticker printer.
 // Usage: npx tsx --env-file=.env scripts/mint-batch.ts <label> <quantity> [outDir]
 import { mkdirSync, writeFileSync } from "node:fs";
@@ -29,7 +29,7 @@ async function main() {
     for (;;) {
       slug = generateSlug();
       try {
-        await prisma.pin.create({ data: { slug, batchId: batch.id } });
+        await prisma.sticker.create({ data: { code: slug, batchId: batch.id } });
         break;
       } catch (err) {
         if (err instanceof Error && err.message.includes("Unique constraint")) continue;

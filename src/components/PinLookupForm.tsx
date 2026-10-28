@@ -12,10 +12,10 @@ export function PinLookupForm() {
     e.preventDefault();
     const trimmed = code.trim();
     if (!trimmed) return;
-    // Full validation (checksum, alphabet) happens on /p/[slug] itself —
+    // Full validation (checksum, alphabet) happens on /s/[code] itself —
     // this just routes there. Same page shows a helpful message if it
     // doesn't check out.
-    router.push(`/p/${encodeURIComponent(trimmed)}`);
+    router.push(`/s/${encodeURIComponent(trimmed)}`);
   }
 
   return (

@@ -33,7 +33,7 @@ export default async function SeriesDetailPage({ params, searchParams }: Props) 
   if (!series) notFound();
 
   // Best-effort — browsing this page must never stall on a slow auth check
-  // (same reasoning as /p/[slug]). Failing open to "logged out" just hides
+  // (same reasoning as /p/[number]). Failing open to "logged out" just hides
   // the claim/unclaim controls for this one request.
   const claims = await getAuthClaims(BEST_EFFORT_AUTH_TIMEOUT_MS);
   const viewerId = claims?.sub;

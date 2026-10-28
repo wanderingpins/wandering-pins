@@ -21,13 +21,13 @@ const MAX_SELECTION_BYTES = 25 * 1024 * 1024;
 // stays private.
 export function PinPhotoWidget({
   holdingId,
-  slug,
+  pinNumber,
   frontPhotoId,
   publicTitle,
   pinColor,
 }: {
   holdingId: string;
-  slug: string;
+  pinNumber: number;
   frontPhotoId?: string;
   publicTitle: string;
   pinColor?: string;
@@ -114,7 +114,7 @@ export function PinPhotoWidget({
         <>
           <PinPhotoFrame pinColor={pinColor}>
             {/* eslint-disable-next-line @next/next/no-img-element -- served through a dedicated public route, not a static asset next/image can optimize */}
-            <img src={`/api/pins/${slug}/photo`} alt={publicTitle} className="size-56 object-cover" />
+            <img src={`/api/pins/${pinNumber}/photo`} alt={publicTitle} className="size-56 object-cover" />
           </PinPhotoFrame>
           {editing && (
             <div className="flex gap-2">

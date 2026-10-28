@@ -22,7 +22,7 @@ export default async function MyPinsPage({ searchParams }: Props) {
 
   const holdings = await prisma.pinHolding.findMany({
     where: { userId: user.id },
-    include: { pin: true, title: true, photos: { where: { kind: "FRONT" }, take: 1 } },
+    include: { pin: { include: { sticker: true } }, title: true, photos: { where: { kind: "FRONT" }, take: 1 } },
     orderBy: { acquiredAt: "desc" },
   });
 
@@ -48,7 +48,9 @@ export default async function MyPinsPage({ searchParams }: Props) {
   // location, and only "Ever had" distinguishes released from still-held.
   const baseProps = (h: (typeof holdings)[number], kind: Kind) => ({
     id: h.id,
-    slug: h.pin.slug,
+    pinNumber: h.pin.number,
+    // The sticker code is only ever shown for a pin you currently hold.
+    stickerLine: kind === "current" ? (h.pin.sticker ? `Sticker ${h.pin.sticker.code}` : "No sticker yet") : null,
     placeLabel: h.placeLabel,
     acquiredAt: h.acquiredAt,
     acquiredVia: h.acquiredVia,
@@ -90,11 +92,19 @@ export default async function MyPinsPage({ searchParams }: Props) {
         <section className="mt-6 rounded-lg border border-neutral-200 p-4">
           <h2 className="text-sm font-semibold text-neutral-700">Got a new pin?</h2>
           <p className="mt-1 text-sm text-neutral-600">
-            Scan the code on the back, or type it below, to register it to your account.
+            Scan the sticker on the back, or type its code below, to register it to your account or attach it to a
+            pin you already have.
           </p>
           <div className="mt-3 max-w-sm">
             <PinLookupForm />
           </div>
+          <p className="mt-3 text-sm text-neutral-600">
+            No sticker yet?{" "}
+            <Link href="/pins/new" className="text-accent hover:underline">
+              Add a pin without one
+            </Link>
+            .
+          </p>
         </section>
       </div>
 
@@ -161,7 +171,8 @@ function Section({
 
 function HoldingRow({
   id,
-  slug,
+  pinNumber,
+  stickerLine,
   placeLabel,
   title,
   acquiredAt,
@@ -172,7 +183,8 @@ function HoldingRow({
   photoId,
 }: {
   id: string;
-  slug: string;
+  pinNumber: number;
+  stickerLine: string | null;
   placeLabel: string;
   title?: string;
   acquiredAt: Date;
@@ -195,10 +207,13 @@ function HoldingRow({
         <div className="h-16 w-16 flex-shrink-0 rounded-md bg-neutral-100" aria-hidden />
       )}
       <div className="flex flex-1 flex-col gap-0.5">
-        <Link href={`/p/${slug}`} className="font-medium hover:underline">
+        <Link href={`/p/${pinNumber}`} className="font-medium hover:underline">
           {title || placeLabel}
         </Link>
-        <p className="font-mono text-xs text-neutral-400">{slug}</p>
+        <p className="font-mono text-xs text-neutral-400">
+          Pin #{pinNumber}
+          {stickerLine && ` · ${stickerLine}`}
+        </p>
         <p className="text-sm text-neutral-600">{formatAcquisition(acquiredVia, placeLabel, acquiredAt)}</p>
         <p className="text-sm text-neutral-600">
           {pending ? (
@@ -218,7 +233,7 @@ function HoldingRow({
             notes &amp; photos
           </Link>
           {released && (
-            <Link href={`/p/${slug}`} className="text-neutral-500 hover:text-white">
+            <Link href={`/p/${pinNumber}`} className="text-neutral-500 hover:text-white">
               see where it went &rarr;
             </Link>
           )}

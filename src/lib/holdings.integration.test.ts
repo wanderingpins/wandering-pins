@@ -1,7 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { afterEach, describe, expect, it } from "vitest";
 import { prisma } from "./prisma";
-import { generateSlug } from "./slug";
 import { getOwnedHolding } from "./holdings";
 
 // getOwnedHolding backs every private-data check (notes, titles, photos —
@@ -9,14 +8,13 @@ import { getOwnedHolding } from "./holdings";
 // regresses, private data leaks, so it gets its own direct test rather than
 // relying only on the routes that call it.
 describe("getOwnedHolding", () => {
-  const cleanup: { pinId?: string; batchId?: string; userIds: string[] } = { userIds: [] };
+  const cleanup: { pinId?: string; userIds: string[] } = { userIds: [] };
 
   afterEach(async () => {
     if (cleanup.pinId) {
       await prisma.pinHolding.deleteMany({ where: { pinId: cleanup.pinId } });
       await prisma.pin.delete({ where: { id: cleanup.pinId } }).catch(() => {});
     }
-    if (cleanup.batchId) await prisma.stickerBatch.delete({ where: { id: cleanup.batchId } }).catch(() => {});
     for (const id of cleanup.userIds) {
       await prisma.user.delete({ where: { id } }).catch(() => {});
     }
@@ -24,9 +22,7 @@ describe("getOwnedHolding", () => {
   });
 
   it("returns the holding for its owner, and null for anyone else or a bogus id", async () => {
-    const batch = await prisma.stickerBatch.create({ data: { label: "test", quantity: 1 } });
-    cleanup.batchId = batch.id;
-    const pin = await prisma.pin.create({ data: { slug: generateSlug(), batchId: batch.id, status: "REGISTERED" } });
+    const pin = await prisma.pin.create({ data: {} });
     cleanup.pinId = pin.id;
 
     const owner = await prisma.user.create({

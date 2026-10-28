@@ -5,7 +5,7 @@ import { updateTitle, type ActionState } from "@/app/holdings/[holdingId]/action
 import { PinNamePill } from "@/components/PinNamePill";
 import { useEditMode } from "@/components/PinEditMode";
 
-// The pin's name pill on /p/[slug]. Only ever rendered with a holdingId for the
+// The pin's name pill on /p/[number]. Only ever rendered with a holdingId for the
 // current holder (gated by the caller). Outside edit mode it's just the pill;
 // once the owner presses the "Edit pin information" sticker the name becomes a
 // field inside the pill, with a Save button under it.

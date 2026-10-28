@@ -6,15 +6,15 @@ import { PinPhotoFrame } from "@/components/PinPhotoFrame";
 import { PinSticker } from "@/components/PinSticker";
 import { TornPaper } from "@/components/TornPaper";
 
-// A smaller version of the /p/[slug] cork scene, for the /pins cork view: name
+// A smaller version of the /p/[number] cork scene, for the /pins cork view: name
 // in enamel on top, photo print, and a note pinned over the photo's lower
-// right. Every field here is already public on /p/[slug] (see pin-directory.ts).
+// right. Every field here is already public on /p/[number] (see pin-directory.ts).
 export function PinCard({ pin }: { pin: DirectoryPin }) {
-  const { color, photoTilt, paperTilt, stickerColor, stickerTilt, photoPinColor, paperPinColor } = pinCardStyle(pin.slug);
+  const { color, photoTilt, paperTilt, stickerColor, stickerTilt, photoPinColor, paperPinColor } = pinCardStyle(String(pin.number));
 
   return (
     <Link
-      href={`/p/${pin.slug}`}
+      href={`/p/${pin.number}`}
       className="group flex flex-col items-center gap-5 rounded-lg p-2 transition-transform hover:-translate-y-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cream"
     >
       {/* Same left offset and width as the photo below, so the name sits
@@ -29,8 +29,8 @@ export function PinCard({ pin }: { pin: DirectoryPin }) {
         <div className="relative ml-3 self-start">
           <PinPhotoFrame tilt={photoTilt} pinColor={photoPinColor}>
             {pin.hasPhoto ? (
-              // eslint-disable-next-line @next/next/no-img-element -- served through the same public per-pin photo route as /p/[slug]
-              <img src={`/api/pins/${pin.slug}/photo`} alt={pin.title} className="size-36 object-cover" />
+              // eslint-disable-next-line @next/next/no-img-element -- served through the same public per-pin photo route as /p/[number]
+              <img src={`/api/pins/${pin.number}/photo`} alt={pin.title} className="size-36 object-cover" />
             ) : (
               <div className="flex size-36 items-center justify-center bg-navy text-xs text-neutral-500">No photo yet</div>
             )}

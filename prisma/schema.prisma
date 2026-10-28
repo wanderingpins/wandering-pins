@@ -14,11 +14,6 @@ datasource db {
   // gets its own connection string via a driver adapter — see src/lib/prisma.ts.
 }
 
-enum PinStatus {
-  MINTED
-  REGISTERED
-}
-
 enum AcquiredVia {
   BOUGHT
   TRADED
@@ -39,24 +34,51 @@ model StickerBatch {
   label     String
   quantity  Int
 
-  pins Pin[]
+  stickers Sticker[]
 
   @@map("sticker_batches")
 }
 
+// The pin itself — the object someone owns. `number` is its public identity
+// (/p/{number}, the /pins directory, card styling) and is deliberately NOT a
+// credential: it's sequential and enumerable, and says nothing about the
+// sticker. A pin exists the moment someone registers it, with or without a
+// sticker; it can only wander (be released, claimed by someone else, log new
+// locations) while a Sticker is attached.
 model Pin {
-  id           String    @id @default(cuid())
-  slug         String    @unique
-  status       PinStatus @default(MINTED)
-  batchId      String    @map("batch_id")
-  createdAt    DateTime  @default(now()) @map("created_at")
-  registeredAt DateTime? @map("registered_at")
+  id        String   @id @default(cuid())
+  number    Int      @unique @default(autoincrement())
+  createdAt DateTime @default(now()) @map("created_at")
 
-  batch        StickerBatch  @relation(fields: [batchId], references: [id])
   holdings     PinHolding[]
   seriesClaims SeriesClaim[]
+  sticker      Sticker?
 
   @@map("pins")
+}
+
+// The printed QR sticker: the wander credential. `code` is what's on the
+// sticker and in the QR payload (format in src/lib/slug.ts, payload in
+// src/lib/qr.ts) and is the ONLY thing that proves you're holding the
+// physical pin — so it is never shown on a public page, never part of a URL
+// a stranger can browse to (a pin's public URL uses Pin.number), and only
+// ever revealed to the pin's current holder.
+//
+// Minting creates Stickers with pinId = null. Registering a new pin with a
+// sticker, or attaching a sticker to a sticker-less pin you hold, sets pinId
+// and attachedAt. pinId is unique: a pin carries at most one sticker.
+model Sticker {
+  id         String    @id @default(cuid())
+  code       String    @unique
+  batchId    String    @map("batch_id")
+  pinId      String?   @unique @map("pin_id")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  attachedAt DateTime? @map("attached_at")
+
+  batch StickerBatch @relation(fields: [batchId], references: [id])
+  pin   Pin?         @relation(fields: [pinId], references: [id])
+
+  @@map("stickers")
 }
 
 // id is the Supabase Auth user's UUID directly (no separate default) — one
@@ -182,7 +204,7 @@ model HoldingPhoto {
 // (section 7) treats as private by default — but by explicit user
 // decision, both are deliberate, narrow public exceptions, exactly like the
 // FRONT-kind HoldingPhoto: visible ONLY for the current open holding,
-// resolved through a dedicated path in /p/[slug]/page.tsx (never through
+// resolved through a dedicated path in components/PinView.tsx (never through
 // toPublicHolding, which stays the narrow structurally-safe boundary for
 // everything else). `title` stays a required column for backward
 // compatibility — a description-only row stores `title: ""`, which the
@@ -255,7 +277,7 @@ model HoldingCheckInPhoto {
   @@map("holding_check_in_photos")
 }
 
-// Rate-limiting /p/{slug} by IP (brief section 8) — the compensating
+// Rate-limiting /s/{code} by IP (brief section 8) — the compensating
 // control for spending a check-digit character on error detection rather
 // than on entropy, since the ~1B keyspace is otherwise scrapeable by brute
 // force. Fixed 60s windows per IP; not modeled as a relation to anything.

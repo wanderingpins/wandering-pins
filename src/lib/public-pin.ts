@@ -3,7 +3,7 @@ import { resolveHolderDisplayName } from "@/lib/timeline";
 
 // Brief section 7: the public pin page may render structured fields ONLY —
 // no user-typed text (titles, notes) and no user-uploaded images, ever.
-// This is the single seam every field on /p/[slug] passes through, so
+// This is the single seam every field on /p/[number] passes through, so
 // "did we accidentally leak a private field" is one function to audit
 // (and one test to hold the line — see public-pin.test.ts) instead of
 // trusting every call site to remember by hand.

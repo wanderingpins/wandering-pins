@@ -27,7 +27,7 @@ export default async function HoldingPage({ params }: Props) {
   }
 
   const [pin, title, note, photos, checkIns] = await Promise.all([
-    prisma.pin.findUniqueOrThrow({ where: { id: holding.pinId } }),
+    prisma.pin.findUniqueOrThrow({ where: { id: holding.pinId }, include: { sticker: true } }),
     prisma.pinTitle.findUnique({ where: { holdingId } }),
     prisma.holdingNote.findUnique({ where: { holdingId } }),
     prisma.holdingPhoto.findMany({ where: { holdingId }, orderBy: { createdAt: "asc" } }),
@@ -40,14 +40,16 @@ export default async function HoldingPage({ params }: Props) {
 
   // A check-in is public movement, so it can only be logged against the
   // real, confirmed current holding — not a tentative/pending one, and not
-  // a closed one (that stint is over).
-  const canAddCheckIn = holding.releasedAt === null && !holding.pending;
+  // a closed one (that stint is over). And only on a pin with a sticker
+  // attached — no sticker, no wandering.
+  const isCurrent = holding.releasedAt === null && !holding.pending;
+  const canAddCheckIn = isCurrent && !!pin.sticker;
 
   return (
     <main className="mx-auto max-w-md px-4 py-10">
       <p className="text-sm text-neutral-500">
-        <Link href={`/p/${pin.slug}`} className="hover:underline">
-          Pin {pin.slug}
+        <Link href={`/p/${pin.number}`} className="hover:underline">
+          Pin #{pin.number}
         </Link>{" "}
         · {holding.placeLabel} · {formatMonthYear(holding.acquiredAt)}
       </p>
@@ -85,7 +87,7 @@ export default async function HoldingPage({ params }: Props) {
         {photos.length > 0 && (
           <ul className="mt-3 grid grid-cols-3 gap-3">
             {photos.map((photo) => {
-              const isPublic = photo.kind === "FRONT" && canAddCheckIn;
+              const isPublic = photo.kind === "FRONT" && isCurrent;
               return (
                 <li key={photo.id} className="relative">
                   {/* eslint-disable-next-line @next/next/no-img-element -- private, per-user image behind an auth-gated route; next/image's optimizer would need its own auth pass-through */}
@@ -183,7 +185,9 @@ export default async function HoldingPage({ params }: Props) {
             <p className="mt-3 text-sm text-neutral-500">
               {holding.pending
                 ? "You can log locations once this claim is confirmed."
-                : "This stint is over, so no new locations can be logged here."}
+                : !isCurrent
+                  ? "This stint is over, so no new locations can be logged here."
+                  : "This pin hasn't received its passport yet — attach a sticker to log new locations."}
             </p>
           )
         )}

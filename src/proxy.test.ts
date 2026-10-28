@@ -23,17 +23,17 @@ describe("proxy", () => {
   it("302s wpins.co to the canonical app URL", async () => {
     const res = await proxy(requestFor("wpins.co", "/k7m2-qx9"));
     expect(res.status).toBe(302);
-    expect(res.headers.get("location")).toBe("https://wanderingpins.com/p/K7M2QX9");
+    expect(res.headers.get("location")).toBe("https://wanderingpins.com/s/K7M2QX9");
   });
 
-  it("302s a non-canonical /p/{slug} on the app host to the canonical form", async () => {
-    const res = await proxy(requestFor("wanderingpins.com", "/p/k7m2qx9"));
+  it("302s a non-canonical /s/{code} on the app host to the canonical form", async () => {
+    const res = await proxy(requestFor("wanderingpins.com", "/s/k7m2qx9"));
     expect(res.status).toBe(302);
-    expect(res.headers.get("location")).toBe("https://wanderingpins.com/p/K7M2QX9");
+    expect(res.headers.get("location")).toBe("https://wanderingpins.com/s/K7M2QX9");
   });
 
-  it("passes an already-canonical /p/{slug} through unmodified", async () => {
-    const res = await proxy(requestFor("wanderingpins.com", "/p/K7M2QX9"));
+  it("passes an already-canonical /s/{code} through unmodified", async () => {
+    const res = await proxy(requestFor("wanderingpins.com", "/s/K7M2QX9"));
     expect(res.status).toBe(200);
   });
 
@@ -42,16 +42,26 @@ describe("proxy", () => {
     expect(res.status).toBe(200);
   });
 
-  it("rate-limits repeated /p/{slug} requests from the same IP", async () => {
+  it("rate-limits repeated /s/{code} requests from the same IP", async () => {
     const ip = randomUUID();
     testIps.push(ip);
 
     for (let i = 0; i < 30; i++) {
-      const res = await proxy(requestFor("wanderingpins.com", "/p/K7M2QX9", ip));
+      const res = await proxy(requestFor("wanderingpins.com", "/s/K7M2QX9", ip));
       expect(res.status).toBe(200);
     }
-    const blocked = await proxy(requestFor("wanderingpins.com", "/p/K7M2QX9", ip));
+    const blocked = await proxy(requestFor("wanderingpins.com", "/s/K7M2QX9", ip));
     expect(blocked.status).toBe(429);
+  });
+
+  it("does not rate-limit the public /p/{number} page — it isn't a credential", async () => {
+    const ip = randomUUID();
+    testIps.push(ip);
+
+    for (let i = 0; i < 40; i++) {
+      const res = await proxy(requestFor("wanderingpins.com", "/p/42", ip));
+      expect(res.status).toBe(200);
+    }
   });
 
   it("rate-limits repeated /pins requests from the same IP", async () => {

@@ -20,7 +20,7 @@ import { MAX_CHECKIN_PHOTOS } from "@/lib/photo-limits";
 const MAX_SELECTION_BYTES = 25 * 1024 * 1024;
 
 // Inline "add details" for one check-in's journey line, shown only to that
-// check-in's owner (gated by the caller — /app/p/[slug]/page.tsx). Same
+// check-in's owner (gated by the caller — /app/p/[number]/page.tsx). Same
 // shape as InlineHoldingDetails — check-in photos have no `kind`, always
 // private, capped at MAX_CHECKIN_PHOTOS.
 export function InlineCheckInDetails({

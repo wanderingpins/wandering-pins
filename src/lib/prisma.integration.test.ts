@@ -10,15 +10,15 @@ describe("prisma runtime connection", () => {
     const batch = await prisma.stickerBatch.create({
       data: { label: "integration-test", quantity: 1 },
     });
-    const slug = generateSlug();
-    const pin = await prisma.pin.create({
-      data: { slug, batchId: batch.id },
+    const code = generateSlug();
+    const sticker = await prisma.sticker.create({
+      data: { code, batchId: batch.id },
     });
 
-    const found = await prisma.pin.findUnique({ where: { slug } });
-    expect(found?.status).toBe("MINTED");
+    const found = await prisma.sticker.findUnique({ where: { code } });
+    expect(found?.pinId).toBeNull();
 
-    await prisma.pin.delete({ where: { id: pin.id } });
+    await prisma.sticker.delete({ where: { id: sticker.id } });
     await prisma.stickerBatch.delete({ where: { id: batch.id } });
   });
 });

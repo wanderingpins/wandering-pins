@@ -3,7 +3,7 @@
 import { createContext, useContext, useState, type ReactNode } from "react";
 import { Starburst } from "@/components/PinSticker";
 
-// "Edit mode" for the pin page (/p/[slug]). For anyone who owns something on
+// "Edit mode" for the pin page (/p/[number]). For anyone who owns something on
 // the page, nothing is editable until they press the "Edit pin information"
 // sticker; every editing widget reads this and shows its read-only view
 // otherwise. The default (no provider, i.e. an anonymous visitor) is "not

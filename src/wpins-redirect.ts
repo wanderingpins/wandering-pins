@@ -10,7 +10,7 @@
  * This is intentionally "dumb": it normalises casing/look-alikes and builds
  * the destination URL, but does NOT validate the check character or look
  * anything up in a database. Real validation (malformed vs. bad checksum vs.
- * unregistered) is application logic and belongs on the /p/[slug] page in
+ * unregistered) is application logic and belongs on the /s/[code] page in
  * the main app, not in the redirector (gotcha #8 — don't let this grow
  * features).
  *
@@ -40,5 +40,5 @@ export function buildRedirectUrl(pathname: string): string {
   if (!rawSlug) {
     return `https://${APP_HOST}/`;
   }
-  return `https://${APP_HOST}/p/${normalizeSlugInput(rawSlug)}`;
+  return `https://${APP_HOST}/s/${normalizeSlugInput(rawSlug)}`;
 }

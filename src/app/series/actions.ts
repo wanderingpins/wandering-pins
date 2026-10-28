@@ -31,7 +31,7 @@ async function assertNotOverCreationLimit(userId: string): Promise<string | null
 // series that already exists (by any casing/whitespace) just lands you on
 // the existing one instead of forking the catalog. `linkPin` is carried
 // through as a query param so a user arriving from "Add this pin to a
-// series" on /p/[slug] stays on that same errand across the redirect.
+// series" on /p/[number] stays on that same errand across the redirect.
 export async function findOrCreateSeries(_prevState: ActionState, formData: FormData): Promise<ActionState> {
   const user = await requireAppUser("/series");
 

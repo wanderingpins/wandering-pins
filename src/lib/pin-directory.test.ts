@@ -3,7 +3,7 @@ import { filterSortPaginate, type DirectoryPin } from "./pin-directory";
 
 function pin(overrides: Partial<DirectoryPin>): DirectoryPin {
   return {
-    slug: "AAAAAAA",
+    number: 1,
     title: "Untitled Pin",
     description: "",
     hasPhoto: false,
@@ -17,42 +17,42 @@ function pin(overrides: Partial<DirectoryPin>): DirectoryPin {
 describe("filterSortPaginate", () => {
   it("defaults to most-traveled (highest verified count) first", () => {
     const pins = [
-      pin({ slug: "A", verifiedCount: 1 }),
-      pin({ slug: "B", verifiedCount: 5 }),
-      pin({ slug: "C", verifiedCount: 3 }),
+      pin({ number: 1, verifiedCount: 1 }),
+      pin({ number: 2, verifiedCount: 5 }),
+      pin({ number: 3, verifiedCount: 3 }),
     ];
     const result = filterSortPaginate(pins, {});
-    expect(result.pins.map((p) => p.slug)).toEqual(["B", "C", "A"]);
+    expect(result.pins.map((p) => p.number)).toEqual([2, 3, 1]);
   });
 
   it("breaks a verified-count tie by newest first", () => {
     const pins = [
-      pin({ slug: "OLD", verifiedCount: 2, registeredAt: new Date("2024-01-01") }),
-      pin({ slug: "NEW", verifiedCount: 2, registeredAt: new Date("2024-06-01") }),
+      pin({ number: 10, verifiedCount: 2, registeredAt: new Date("2024-01-01") }),
+      pin({ number: 11, verifiedCount: 2, registeredAt: new Date("2024-06-01") }),
     ];
     const result = filterSortPaginate(pins, {});
-    expect(result.pins.map((p) => p.slug)).toEqual(["NEW", "OLD"]);
+    expect(result.pins.map((p) => p.number)).toEqual([11, 10]);
   });
 
   it("sorts by title alphabetically when asked", () => {
-    const pins = [pin({ slug: "A", title: "Zebra" }), pin({ slug: "B", title: "Apple" })];
+    const pins = [pin({ number: 1, title: "Zebra" }), pin({ number: 2, title: "Apple" })];
     const result = filterSortPaginate(pins, { sort: "title" });
-    expect(result.pins.map((p) => p.slug)).toEqual(["B", "A"]);
+    expect(result.pins.map((p) => p.number)).toEqual([2, 1]);
   });
 
   it("searches across title, description, and holder name case-insensitively", () => {
     const pins = [
-      pin({ slug: "A", title: "Disney Mickey Ears" }),
-      pin({ slug: "B", description: "a rare disney pin" }),
-      pin({ slug: "C", holderDisplayName: "disneyfan" }),
-      pin({ slug: "D", title: "Star Wars" }),
+      pin({ number: 1, title: "Disney Mickey Ears" }),
+      pin({ number: 2, description: "a rare disney pin" }),
+      pin({ number: 3, holderDisplayName: "disneyfan" }),
+      pin({ number: 4, title: "Star Wars" }),
     ];
     const result = filterSortPaginate(pins, { search: "DISNEY" });
-    expect(result.pins.map((p) => p.slug).sort()).toEqual(["A", "B", "C"]);
+    expect(result.pins.map((p) => p.number).sort()).toEqual([1, 2, 3]);
   });
 
   it("paginates and clamps an out-of-range page", () => {
-    const pins = Array.from({ length: 30 }, (_, i) => pin({ slug: `P${i}`, verifiedCount: 30 - i }));
+    const pins = Array.from({ length: 30 }, (_, i) => pin({ number: i + 1, verifiedCount: 30 - i }));
     const first = filterSortPaginate(pins, { page: 1 });
     expect(first.pins).toHaveLength(25);
     expect(first.pageCount).toBe(2);

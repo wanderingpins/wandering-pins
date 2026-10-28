@@ -33,6 +33,12 @@ export async function addCheckIn(holdingId: string, _prevState: ActionState, for
   if (holding.releasedAt !== null || holding.pending) {
     return { status: "error", message: "You can only log a new location while you're the confirmed current holder." };
   }
+  // No sticker, no wandering: a pin with no sticker attached can't log new
+  // places (its one location is where the holder got it).
+  const sticker = await prisma.sticker.findUnique({ where: { pinId: holding.pinId }, select: { id: true } });
+  if (!sticker) {
+    return { status: "error", message: "Attach a sticker to this pin before logging new locations." };
+  }
 
   const parsed = checkInSchema.safeParse({
     loggedAt: formData.get("loggedAt"),

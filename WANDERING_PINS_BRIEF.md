@@ -47,9 +47,10 @@ QR is that small, the encoded string has a hard character budget, which is where
 in section 4 come from.
 
 Stickers are **printed in batches before any pin exists.** A collector buys a sheet, sticks them on
-pins they already own, then registers each one. This has a direct architectural consequence: a slug
-must already exist in the database, in an unclaimed state, before anyone ever scans it. See
-section 5.
+pins they already own, then registers each one. This has a direct architectural consequence: a
+sticker's code must already exist in the database, unattached to any pin, before anyone ever scans
+it. See section 5. (A pin can also exist with no sticker at all — it just can't wander. See
+section 5's `stickers` entry.)
 
 The printed sticker is permanent and unchangeable. Whatever domain is printed on it must resolve
 forever. Treat that as a hard constraint, not a preference.
@@ -69,9 +70,12 @@ in a Version 1 QR code. It must never host application logic.
 ### Redirect behaviour
 
 ```
-GET https://wpins.co/{slug}
-  → 302 → https://wanderingpins.com/p/{normalised-slug}
+GET https://wpins.co/{code}
+  → 302 → https://wanderingpins.com/s/{normalised-code}
 ```
+
+`/s/{code}` is the scan page (section 6.1). The public pin page is a different URL, keyed by the
+pin's public number — `/p/{number}` — and never contains the sticker code.
 
 Use **302, not 301.** A 301 is cached indefinitely by browsers and intermediaries, and if you ever
 need to repoint a code you will not be able to. These pages are not SEO targets, so there is no
@@ -86,9 +90,12 @@ complete rebuild or rebrand of the main product, because stickers in the wild de
 
 ---
 
-## 4. The slug — read this section carefully
+## 4. The slug (the sticker code) — read this section carefully
 
-The slug is the pin's identity. Almost every bug in this system will come from getting this wrong.
+The slug is the sticker's identity — stored as `stickers.code`, and the credential that proves you
+hold the physical pin. (It is *not* the pin's public identity; that is `pins.number`, section 5. The
+code in this repo is still called `slug` — see `src/lib/slug.ts`.) Almost every bug in this system
+will come from getting this wrong.
 
 ### Format
 
@@ -152,28 +159,51 @@ of the trip. Public data lives on the holding; private data hangs off it.
 
 ### `pins`
 
-The physical object.
+The owned object. A pin is created when someone registers it — with a sticker, or without one.
 
 | field | notes |
 |---|---|
 | `id` | internal PK |
-| `slug` | 7 chars, unique, indexed, uppercase canonical form |
-| `status` | `MINTED` \| `REGISTERED` — see lifecycle below |
-| `batch_id` | which sticker batch this slug was minted in |
-| `created_at` | when the slug was minted |
-| `registered_at` | nullable |
+| `number` | sequential integer (Postgres SERIAL), unique. The pin's **public identity**: `/p/{number}`, the `/pins` directory, card styling. Deliberately **not a credential** — it's enumerable and says nothing about the sticker. |
+| `created_at` | when the pin was registered |
 
-Note there is **no title field on the pin.** See section 7 — the pin's name is private in v1.
+Note there is **no title field on the pin.** The current holder's title lives on `pin_titles`.
 
 There is also no `series` field on `pins` — series/set tracking (section 6.11) is deliberately
 independent of this table. See `series`/`series_items`/`series_claims` below.
 
-**Lifecycle.** A slug is created as `MINTED` when a sticker batch is generated — before the sticker
-is even printed. Scanning a `MINTED` pin must render a "this pin hasn't been registered yet, claim
-it" page, **not a 404.** The first registration moves it to `REGISTERED`.
+### `stickers`
+
+The printed QR sticker — **the wander credential.**
+
+| field | notes |
+|---|---|
+| `id` | internal PK |
+| `code` | the 7-char slug from section 4: unique, indexed, uppercase canonical form. This is what's printed and encoded in the QR. |
+| `batch_id` | which sticker batch this code was minted in |
+| `pin_id` | nullable, **unique** — the pin this sticker is attached to. A pin carries at most one sticker. |
+| `created_at` | when the code was minted |
+| `attached_at` | nullable — when it was attached to a pin |
+
+**Lifecycle.** A sticker is created unattached (`pin_id` null) when a batch is minted — before it is
+even printed. Scanning an unattached sticker must render a "this sticker isn't on a pin yet, use
+it" page, **not a 404.** Using it either creates a new pin carrying it, or attaches it to a
+sticker-less pin the user currently holds.
 
 Getting this wrong is the single most likely way to ship something broken, because in development
 you will naturally create pins first and scan second, which is backwards from reality.
+
+**No sticker, no wandering.** A pin with no sticker attached has exactly one holding — the one
+recorded when it was added (how/when/where the owner got it). It cannot be released, claimed by
+anyone else (claiming starts from the code), or log new locations (`addCheckIn` checks for a
+sticker). Attaching a sticker removes all of those limits. This is the free-tier rule: wandering is
+gated by owning a sticker, not by a paid plan. Pin counts, photo limits and similar can be paid
+tiers later; none of that exists yet.
+
+**The code is a secret from everyone but the current holder.** It never appears in a URL a stranger
+can browse to, in the `/pins` directory, in any public page's output, or in any public image URL.
+The current holder sees it on the pin page, My Pins and nowhere else. This is what keeps someone
+from scraping codes off the public site and claiming other people's pins.
 
 ### `sticker_batches`
 
@@ -181,8 +211,8 @@ you will naturally create pins first and scan second, which is backwards from re
 |---|---|
 | `id`, `created_at`, `label`, `quantity` | |
 
-Lets you mint N slugs at once, hand the list to the sticker generator, and know which physical sheet
-a code came from.
+Lets you mint N stickers at once, hand the list to the sticker generator, and know which physical
+sheet a code came from.
 
 ### `users`
 
@@ -334,21 +364,34 @@ whole design: it works with no admin curation at all.
 
 Build exactly these. Everything else is out of scope.
 
-### 6.1 Scan or type a code → public pin page
+### 6.1 Scan or type a code → pin page
 
-Route: `/p/{slug}`. **No authentication required.** This is the most important page in the product.
+Two routes, one journey page. **No authentication required** for either, and this is the most
+important page in the product.
+
+- **`/s/{code}`** — the scan page. This is what the QR (via `wpins.co`) and the "type the code" box
+  land on. Having the code proves the visitor is holding the physical pin, so **this is the only
+  place a "Claim this pin" button appears.** Rate-limited by IP (section 8).
+- **`/p/{number}`** — the public, shareable page, and what `/pins` links to. Same journey, but no
+  claim button (it says "scan the sticker on it to claim it") and no sticker code anywhere. Not
+  rate-limited — the number is not a credential.
 
 Assume the visitor has never heard of Wandering Pins. They were handed a pin by a friend, noticed a
 tiny sticker, and pointed their camera at it. This page is your entire acquisition funnel.
 
-Two states:
+Three states:
 
-- **`REGISTERED`** — the journey. A map with a line connecting the places the pin has been, and a
-  timeline beneath it. Each leg reads as generated prose from structured fields, e.g.
+- **A pin with a sticker** — the journey. A map with a line connecting the places the pin has been,
+  and a timeline beneath it. Each leg reads as generated prose from structured fields, e.g.
   *"Bought in Orlando, FL · March 2024"* → *"Traded in Denver, CO · June 2024"*. Show the holder's
-  display name, or "a collector" if they've opted out. End with a warm prompt to claim it if they
-  now own it.
-- **`MINTED`** — "This pin hasn't been registered yet." Offer to register it. Do not show an error.
+  display name, or "a collector" if they've opted out. On `/s/{code}`, end with a warm prompt to
+  claim it if they now own it. The current holder alone also sees the sticker code here.
+- **A pin with no sticker** — the same page, plus a notice that the pin "hasn't received its
+  passport yet" and so can't be traded, claimed or moved. No claim button, no trade or location
+  buttons. (A link to buy stickers goes here once that side exists.) The holder additionally gets
+  a pointer to attach a sticker.
+- **An unattached sticker** (`/s/{code}` only) — "This sticker isn't on a pin yet." Offer to use it.
+  Do not show an error. An unknown or malformed code gets a plain "doesn't look right" message.
 
 **Design note.** With no photo and no free text, the map and timeline carry this page alone. Invest
 the visual effort there — this is the one screen that has to charm a stranger in about four seconds.
@@ -370,12 +413,15 @@ email, magic-link sign-in is the recovery path — no separate "forgot password"
 
 ### 6.3 Register a pin
 
-Authenticated. Three cases, all through the same form (how you got it, roughly when, a coarse
-location, and optionally a private title/notes/photos):
+Authenticated. All through the same form (how you got it, roughly when, a coarse location, and
+optionally a private title/notes/photos). Starting from a sticker's code (`/s/{code}/claim`):
 
-- **No open holding exists** — a never-before-claimed `MINTED` slug, or a `REGISTERED` pin someone
-  released with no holder (section 6.4). An ordinary, immediate claim: opens a real holding right
-  away.
+- **The sticker isn't on a pin yet** — a freshly minted one. Either register a **new pin** with it
+  (creates the pin, attaches the sticker, opens the first holding, all in one transaction), or
+  **attach it to a sticker-less pin you currently hold** (a one-click choice listed above the
+  form). Only the confirmed current holder of a sticker-less pin can attach one to it.
+- **No open holding exists** — a never-before-claimed pin, or one someone released with no holder
+  (section 6.4). An ordinary, immediate claim: opens a real holding right away.
 - **A confirmed holding exists, belonging to someone else, and no one's pending yet** — reverses an
   earlier, stricter decision to block this outright. Registering now opens a *tentative* holding
   (`pending = true`, section 5): it shows up on the claimant's own My Pins right away, labeled
@@ -387,9 +433,15 @@ location, and optionally a private title/notes/photos):
 - **A confirmed holding already belongs to the requesting user, or a pending claim already exists**
   — rejected; nothing to claim.
 
+**Adding a pin with no sticker** (`/pins/new`). The same form, with no code involved: creates a pin
+and its one holding, and sends the owner to its public page, which carries the "passport" notice
+(section 6.1). Nothing further can happen to it until a sticker is attached.
+
 ### 6.4 Log a trade
 
-Authenticated. The current holder releases the pin with **no recipient specified at all** — this is
+Authenticated, reached from the sticker's code (`/s/{code}/release`) — which is also what makes
+"no sticker, no wandering" hold: a sticker-less pin has no code to release it by. The current holder
+releases the pin with **no recipient specified at all** — this is
 the whole point. One click closes their holding and moves it to "ever had" immediately; there is no
 pending state *for the releaser*, no email or username to provide, and nothing for them to wait on.
 Think of a pin left on a pinboard for a stranger to find: the two people never interact, and the
@@ -408,7 +460,8 @@ or be notified about.
 
 ### 6.5 Log a location without releasing
 
-Authenticated, scoped to your own confirmed (non-pending), still-open holding. Log that the pin
+Authenticated, scoped to your own confirmed (non-pending), still-open holding **on a pin that has a
+sticker attached** — a sticker-less pin's one location is where its owner got it. Log that the pin
 moved to a new place while you still have it — carrying it on a trip, say — without closing your
 holding. Captures a place and a date, same as registering; optionally a private description of what
 happened there, and up to 5 private photos. See `holding_check_ins` in section 5.
@@ -466,15 +519,16 @@ this one page for editing your own. Two independent forms:
 
 ### 6.10 Browse pins
 
-Route: `/pins`. **No authentication required**, same as `/p/{slug}` — a public, sortable, searchable
-index over every `REGISTERED` pin's public summary (title, description, front photo, current holder,
+Route: `/pins`. **No authentication required**, same as `/p/{number}` — a public, sortable, searchable
+index over every pin's public summary (sticker-less pins included) (title, description, front photo, current holder,
 and verified-location count). Defaults to sorted by **most traveled** (highest verified-location
 count first, section 6.6), since that ordering is the most interesting one to land on cold. Also
 sortable by newest-registered and by title, and searchable by free text across
 title/description/holder name. Paginated rather than rendering the whole table in one response.
 
-Rate-limited by IP the same way `/p/{slug}` is (section 8) — arguably more important here, since one
-request returns a summary of many pins instead of one, making it a more efficient scrape target.
+Rate-limited by IP the same way `/s/{code}` is (section 8), since one request returns a summary of
+many pins instead of one, making it a more efficient scrape target. Links and image URLs here use
+pin numbers only — never a sticker code.
 
 ### 6.11 Series tracking
 
@@ -490,7 +544,7 @@ rationale (crowd-created, additive-only, no admin curation, text-only catalog, p
   `show_name_publicly`) and a claim/unclaim control for the signed-in viewer. An "add a pin to this
   series" form appends a new item (again find-or-create, scoped to this series). An item's own
   creator can remove it, but only before anyone has claimed it (additive-only, section 5).
-- `/p/{slug}` shows a lightweight, read-only link-through right below the pin's photo/description
+- `/p/{number}` shows a lightweight, read-only link-through right below the pin's photo/description
   (same slot the earlier per-pin exploration used, before it was superseded by this design): if the
   **current holder** has a claim linked to this specific physical pin (`series_claims.linked_pin_id`),
   it's shown there as "Part of a series: {series} — {item}," linking to `/series/{id}`. If they don't,
@@ -544,10 +598,11 @@ journey at all, and doesn't require a registered pin to exist first:
   no-prerequisite surface. See section 5 for the rest of the anti-abuse design (additive-only editing,
   find-or-create key normalisation, a per-user creation throttle).
 
-The pin's slug itself is **no longer rendered as text on `/p/{slug}`**, for anyone — reverses the
-original design, which listed it as public. It still has to appear in the URL to reach the page at
-all (there's no way around that), but a stranger reading the page can no longer learn the code by
-looking at it. You still see your own pin's code on My Pins and its private holding-detail page.
+The sticker's code is **never public — not in text, not in a URL, not in any image link.** The public
+page lives at `/p/{number}` (the pin's sequential public number, section 5), so a stranger or a
+scraper of `/pins` never sees a code. Only the pin's *current holder* sees it, on the pin page and
+My Pins. The code appears in a URL only for someone who already has the physical sticker
+(`/s/{code}`).
 
 ### Private — visible only to the person who wrote it
 
@@ -614,12 +669,12 @@ Do not extend the public surface any further until all of the following exist:
   keep coordinates you have promised not to expose.
 - Show usernames, never email addresses. Honour `show_name_publicly`, falling back to "a
   collector".
-- Rate-limit `/p/{slug}` by IP. With a ~1 billion keyspace, random guessing is otherwise a viable
-  way to scrape the map. This is the compensating control for spending a character on the check
+- Rate-limit `/s/{code}` by IP. With a ~1 billion keyspace, random guessing is otherwise a viable
+  way to find live codes (and claim them). This is the compensating control for spending a character on the check
   digit rather than on entropy.
 - Rate-limit `/pins` (section 6.10) the same way — one request there returns a public summary of
-  many pins rather than one, so it's a more efficient scrape target than `/p/{slug}`, not a lesser
-  one. Paginate it too, so no single response carries the whole table.
+  many pins rather than one, so it's a more efficient scrape target than a single pin page, not a
+  lesser one. Paginate it too, so no single response carries the whole table.
 - Rate-limit `/series` and `/series/{id}` (section 6.11) the same way, for the same reason.
 
 ---
@@ -674,7 +729,7 @@ get wrong.
 1. **URL paths are case-sensitive by spec.** The QR encodes uppercase. Someone typing the printed
    code will use lowercase. Normalise before lookup or hand-typed codes will 404 while scanned ones
    work — an especially confusing bug because it only shows up for the fallback path.
-2. **Slugs must pre-exist as `MINTED` rows.** Stickers are printed before pins are claimed.
+2. **Sticker codes must pre-exist as unattached `stickers` rows.** Stickers are printed before pins are claimed.
 3. **302, not 301,** on the wpins.co redirect.
 4. **Never store a full URL** as a pin's identity.
 5. **Private photos need private storage.** A signed-upload URL that stays publicly readable is not
@@ -699,7 +754,10 @@ v1 is finished when all of the following pass:
 - [ ] A code typed with `O` for `0` and `I` for `1` resolves correctly.
 - [ ] A code with a bad check character returns a helpful "that code doesn't look right" page, not
       a 404 and not a wrong pin.
-- [ ] Scanning a `MINTED` slug shows a claim page, not an error.
+- [ ] Scanning an unattached sticker shows a "use this sticker" page, not an error.
+- [ ] A sticker code appears nowhere in `/pins`, `/p/{number}`, or any public image URL for anyone but
+      the current holder (see `sticker.integration.test.ts`).
+- [ ] A pin with no sticker cannot be released, claimed by someone else, or log a new location.
 - [ ] A logged-out visitor can view a registered pin's journey and map.
 - [ ] **No public page renders any user-typed text or any user-uploaded image.** Assert this in a
       test that walks the public page's rendered output.
@@ -708,21 +766,21 @@ v1 is finished when all of the following pass:
 - [ ] After trading a pin away, the original owner still sees it under "ever had", still sees their
       own notes and photos, and can see the journey continue.
 - [ ] No page anywhere renders precise coordinates or an email address.
-- [ ] Rate limiting on `/p/{slug}` is active and tested.
+- [ ] Rate limiting on `/s/{code}` is active and tested.
 
 ---
 
 ## Appendix — worked example
 
 ```
-slug            K7M2QX9        (6 data chars + check char)
+code            K7M2QX9        (6 data chars + check char)
 encoded in QR   WPINS.CO/K7M2QX9
 QR              Version 1, ECC Q, 21×21 modules
 printed at      6 mm → 0.286 mm per module
 sticker         8.3 × 13.9 mm, reads:  wpins.co
                                        K7M2QX9
-scan resolves   wpins.co/K7M2QX9 → 302 → wanderingpins.com/p/K7M2QX9
-stored as       pins.slug = 'K7M2QX9'
+scan resolves   wpins.co/K7M2QX9 → 302 → wanderingpins.com/s/K7M2QX9
+stored as       stickers.code = 'K7M2QX9', attached to a pin whose public page is /p/1042
 
 public page     Bought in Orlando, FL · March 2024 · Tim
                 Traded in Denver, CO · June 2024 · Sarah

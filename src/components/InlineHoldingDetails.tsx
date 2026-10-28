@@ -16,7 +16,7 @@ const MAX_SELECTION_BYTES = 25 * 1024 * 1024;
 type Photo = { id: string };
 
 // Inline "add details" for one journey line, shown only to that line's
-// owner (gated by the caller — /app/p/[slug]/page.tsx). Deliberately
+// owner (gated by the caller — /app/p/[number]/page.tsx). Deliberately
 // narrower than the full /holdings/[holdingId] page: just a notes textarea
 // and photos, no title/release-date picker — and no front/back/other side
 // either, since the pin's one public photo now has its own dedicated

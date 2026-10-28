@@ -16,14 +16,14 @@ describe("isRedirectorHost", () => {
 });
 
 describe("buildRedirectUrl", () => {
-  it("builds a canonical /p/{slug} URL on the app domain", () => {
-    expect(buildRedirectUrl("/K7M2QX9")).toBe("https://wanderingpins.com/p/K7M2QX9");
+  it("builds a canonical /s/{code} URL on the app domain", () => {
+    expect(buildRedirectUrl("/K7M2QX9")).toBe("https://wanderingpins.com/s/K7M2QX9");
   });
 
   it("normalises case, hyphens, and look-alike characters", () => {
-    expect(buildRedirectUrl("/k7m2-qx9")).toBe("https://wanderingpins.com/p/K7M2QX9");
-    expect(buildRedirectUrl("/k7m2qO9")).toBe("https://wanderingpins.com/p/K7M2Q09");
-    expect(buildRedirectUrl("/k7m2qI9")).toBe("https://wanderingpins.com/p/K7M2Q19");
+    expect(buildRedirectUrl("/k7m2-qx9")).toBe("https://wanderingpins.com/s/K7M2QX9");
+    expect(buildRedirectUrl("/k7m2qO9")).toBe("https://wanderingpins.com/s/K7M2Q09");
+    expect(buildRedirectUrl("/k7m2qI9")).toBe("https://wanderingpins.com/s/K7M2Q19");
   });
 
   it("falls back to the app root when there is no slug", () => {

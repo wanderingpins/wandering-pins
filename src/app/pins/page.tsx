@@ -7,10 +7,10 @@ import { loadDirectoryPage, type DirectorySort } from "@/lib/pin-directory";
 
 // Public, no authentication (brief section 6.1's spirit extended to a
 // browsable index rather than one pin at a time) — rate-limited the same
-// way /p/[slug] is (see src/proxy.ts), and arguably more important here:
-// one request against this page returns a summary of every registered pin
-// instead of just one, making it a more efficient scrape target than the
-// per-pin page it complements. Paginated (see pin-directory.ts) so the
+// way /s/[code] is (see src/proxy.ts), since one request against this page
+// returns a summary of every registered pin instead of just one, making it
+// the most efficient scrape target on the site. It exposes pin numbers only —
+// never a sticker code. Paginated (see pin-directory.ts) so the
 // rendered HTML itself never carries the whole table either.
 const searchParamsSchema = z.object({
   q: z.string().max(200).optional(),
@@ -96,11 +96,11 @@ export default async function PinsDirectoryPage({ searchParams }: Props) {
         <div className="mx-auto max-w-3xl px-4">
           <ul className="mt-6 divide-y divide-neutral-200">
             {pins.map((pin) => (
-              <li key={pin.slug} className="flex items-start gap-3 py-4">
+              <li key={pin.number} className="flex items-start gap-3 py-4">
                 {pin.hasPhoto ? (
-                  // eslint-disable-next-line @next/next/no-img-element -- served through the same public per-pin photo route as /p/[slug]
+                  // eslint-disable-next-line @next/next/no-img-element -- served through the same public per-pin photo route as /p/[number]
                   <img
-                    src={`/api/pins/${pin.slug}/photo`}
+                    src={`/api/pins/${pin.number}/photo`}
                     alt={pin.title}
                     className="h-16 w-16 flex-shrink-0 rounded-md object-cover"
                   />
@@ -108,7 +108,7 @@ export default async function PinsDirectoryPage({ searchParams }: Props) {
                   <div className="h-16 w-16 flex-shrink-0 rounded-md bg-neutral-100" aria-hidden />
                 )}
                 <div className="flex flex-1 flex-col gap-0.5">
-                  <Link href={`/p/${pin.slug}`} className="font-medium hover:underline">
+                  <Link href={`/p/${pin.number}`} className="font-medium hover:underline">
                     {pin.title}
                   </Link>
                   {pin.description && <p className="line-clamp-2 text-sm text-neutral-600">{pin.description}</p>}
@@ -126,7 +126,7 @@ export default async function PinsDirectoryPage({ searchParams }: Props) {
         // Cork is the default view: a board of small pin scenes.
         <CorkWall>
           {pins.map((pin) => (
-            <li key={pin.slug}>
+            <li key={pin.number}>
               <PinCard pin={pin} />
             </li>
           ))}

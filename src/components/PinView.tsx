@@ -1,7 +1,6 @@
 import Link from "next/link";
-import { z } from "zod";
+import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { parseSlug } from "@/lib/slug";
 import { getAuthClaims } from "@/lib/auth";
 import { BEST_EFFORT_AUTH_TIMEOUT_MS } from "@/lib/with-timeout";
 import {
@@ -31,28 +30,19 @@ import { VerifyLocationButton } from "@/components/VerifyLocationButton";
 import { verifyHoldingLocation } from "@/app/holdings/[holdingId]/actions";
 import { verifyCheckInLocation } from "@/app/holdings/[holdingId]/checkin-actions";
 
-// Zod boundary for the raw route param — brief section 10 ("Zod at every
-// input boundary, including the slug parser"). This just guards the shape;
-// parseSlug (checksum, alphabet) is the real validation.
-const rawSlugSchema = z.string().min(1).max(64);
-
-type Props = { params: Promise<{ slug: string }> };
-
-export default async function PinPage({ params }: Props) {
-  const { slug: rawParam } = await params;
-  const rawSlugResult = rawSlugSchema.safeParse(rawParam);
-  if (!rawSlugResult.success) {
-    return <BadCode reason="malformed" />;
-  }
-
-  const parsed = parseSlug(rawSlugResult.data);
-  if (!parsed.valid) {
-    return <BadCode reason={parsed.reason} />;
-  }
-
+// The pin's journey page. Rendered by two routes:
+//  - /p/{number} — the public, shareable page (also what the /pins directory
+//    links to). No sticker code is known here, so it never offers a claim.
+//  - /s/{code} — reached by scanning or typing the sticker. Passes `scanCode`
+//    (the code the visitor just proved they have), which is what unlocks the
+//    "Claim this pin" button.
+// The sticker's code never appears in this page's output for anyone except
+// the pin's current holder — see Sticker in schema.prisma.
+export async function PinView({ pinNumber, scanCode }: { pinNumber: number; scanCode?: string }) {
   const pin = await prisma.pin.findUnique({
-    where: { slug: parsed.slug },
+    where: { number: pinNumber },
     include: {
+      sticker: true,
       holdings: {
         // A secondary sort key so ties on acquiredAt (same-day registration,
         // near-simultaneous claims) don't leave "the latest" ambiguous — id
@@ -74,13 +64,8 @@ export default async function PinPage({ params }: Props) {
     },
   });
 
-  // A well-formed, checksum-valid slug with no DB row is functionally the
-  // same as MINTED from a visitor's perspective (stickers are printed
-  // before pins are claimed — brief section 2/5) — never a 404, never a
-  // stranger's pin.
-  if (!pin || pin.status === "MINTED") {
-    return <UnregisteredPin slug={parsed.slug} />;
-  }
+  if (!pin) notFound();
+  const sticker = pin.sticker;
 
   // A pending (tentative, not-yet-released) holding is structurally kept out
   // of every public computation below — it's not the real journey yet. Only
@@ -128,7 +113,7 @@ export default async function PinPage({ params }: Props) {
   const frontPhotoId = openHolding?.photos.find((p) => p.kind === "FRONT")?.id;
   const hasPublicPhoto = !!frontPhotoId;
   // Same per-pin push pin colors as this pin's card on /pins.
-  const { photoPinColor, paperPinColor, stickerColor, stickerTilt } = pinCardStyle(parsed.slug);
+  const { photoPinColor, paperPinColor, stickerColor, stickerTilt } = pinCardStyle(String(pin.number));
 
   // "Part of a series" — a lightweight, public link-through to the
   // decoupled series/checklist catalog (src/app/series), not a field on
@@ -242,7 +227,7 @@ export default async function PinPage({ params }: Props) {
                 {isCurrentHolder ? (
                   <PinPhotoWidget
                     holdingId={openHolding!.id}
-                    slug={parsed.slug}
+                    pinNumber={pin.number}
                     frontPhotoId={frontPhotoId}
                     publicTitle={publicTitle}
                     pinColor={photoPinColor}
@@ -251,7 +236,7 @@ export default async function PinPage({ params }: Props) {
                   hasPublicPhoto && (
                     <PinPhotoFrame pinColor={photoPinColor}>
                       {/* eslint-disable-next-line @next/next/no-img-element -- served through a dedicated public route, not a static asset next/image can optimize */}
-                      <img src={`/api/pins/${parsed.slug}/photo`} alt={publicTitle} className="size-56 object-cover" />
+                      <img src={`/api/pins/${pin.number}/photo`} alt={publicTitle} className="size-56 object-cover" />
                     </PinPhotoFrame>
                   )
                 )}
@@ -277,6 +262,8 @@ export default async function PinPage({ params }: Props) {
         </CorkBoard>
 
         <div className="mx-auto max-w-2xl px-4 py-10">
+          {!sticker && <PassportNotice isHolder={isCurrentHolder} />}
+
           {seriesLink ? (
             <p className="mt-3 text-sm text-neutral-600">
               Part of a series:{" "}
@@ -309,35 +296,48 @@ export default async function PinPage({ params }: Props) {
           <PinJourneyTimeline
             lines={timelineLines}
             end={
-              isCurrentHolder ? (
-                <div className="flex flex-wrap gap-2">
-                  <Link
-                    href={`/holdings/${openHolding!.id}#locations`}
-                    className="inline-block rounded-md border border-neutral-300 px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
-                  >
-                    Log a new location
-                  </Link>
-                  <Link
-                    href={`/trade/${parsed.slug}`}
-                    className="inline-block rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover"
-                  >
-                    Log a trade
-                  </Link>
+              // A sticker-less pin has nothing to offer here: it can't be
+              // released, claimed or moved (see PassportNotice above).
+              !sticker ? undefined : isCurrentHolder ? (
+                <div className="flex flex-col gap-3">
+                  <div className="flex flex-wrap gap-2">
+                    <Link
+                      href={`/holdings/${openHolding!.id}#locations`}
+                      className="inline-block rounded-md border border-neutral-300 px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
+                    >
+                      Log a new location
+                    </Link>
+                    <Link
+                      href={`/s/${sticker.code}/release`}
+                      className="inline-block rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover"
+                    >
+                      Log a trade
+                    </Link>
+                  </div>
+                  {/* The one place the sticker's code is ever rendered, and
+                      only for the pin's current holder. */}
+                  <p className="text-xs text-neutral-500">
+                    Sticker code <span className="font-mono">{sticker.code}</span> — only you can see this.
+                  </p>
                 </div>
               ) : ownPendingHolding ? (
                 <p className="text-sm text-neutral-700">
                   ⏳ Your claim on this pin is pending — it&apos;ll join this journey once the current holder releases it.
                 </p>
-              ) : (
+              ) : scanCode ? (
                 <div>
                   <p className="text-sm text-neutral-700">Think you have this pin now?</p>
                   <Link
-                    href={`/register/${parsed.slug}`}
+                    href={`/s/${scanCode}/claim`}
                     className="mt-2 inline-block rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover"
                   >
                     Claim this pin
                   </Link>
                 </div>
+              ) : (
+                <p className="text-sm text-neutral-700">
+                  Found this pin? Scan the sticker on it to claim it.
+                </p>
               )
             }
           />
@@ -347,33 +347,24 @@ export default async function PinPage({ params }: Props) {
   );
 }
 
-function UnregisteredPin({ slug }: { slug: string }) {
+// Shown to everyone on a pin with no sticker. The holder gets one extra line
+// on how to fix it. A "buy stickers" link goes here once that side exists.
+function PassportNotice({ isHolder }: { isHolder: boolean }) {
   return (
-    <main className="mx-auto max-w-2xl px-4 py-10">
-      <h1 className="text-2xl font-semibold">This pin hasn&apos;t been registered yet.</h1>
-      <p className="mt-3 text-neutral-700">
-        Every Wandering Pins code is printed before anyone has claimed it. If this one is yours,
-        register it now to start its journey.
+    <div className="mb-6 rounded-md bg-amber-50 px-4 py-3 text-sm text-amber-800">
+      <p className="font-medium">This pin hasn&apos;t received its passport yet.</p>
+      <p className="mt-1">
+        Without a Wandering Pins sticker, a pin can&apos;t be traded, claimed by anyone else, or log new places.
       </p>
-      <Link
-        href={`/register/${slug}`}
-        className="mt-6 inline-block rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover"
-      >
-        Register this pin
-      </Link>
-    </main>
-  );
-}
-
-function BadCode({ reason }: { reason: "malformed" | "bad_check_char" }) {
-  const message =
-    reason === "bad_check_char"
-      ? "That code doesn't look right — double check for typos."
-      : "That doesn't look like a Wandering Pins code.";
-  return (
-    <main className="mx-auto max-w-2xl px-4 py-10">
-      <h1 className="text-2xl font-semibold">Hmm, that code doesn&apos;t look right</h1>
-      <p className="mt-3 text-neutral-700">{message}</p>
-    </main>
+      {isHolder && (
+        <p className="mt-1">
+          Got a sticker for it?{" "}
+          <Link href="/my-pins" className="font-medium underline">
+            Scan or enter the code
+          </Link>{" "}
+          to attach it.
+        </p>
+      )}
+    </div>
   );
 }

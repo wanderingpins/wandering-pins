@@ -9,14 +9,15 @@ import { TornPaper } from "@/components/TornPaper";
 
 // The /my-pins cork view's card — the same scene as PinCard on /pins (name in
 // enamel, photo print, paper note, starburst sticker, push pins, and the same
-// per-pin colors and tilts, since they come from the same slug), but about one
+// per-pin colors and tilts, since they come from the same pin number), but about one
 // of YOUR holdings: the photo is the private front photo of that holding, the
-// note carries the acquisition line and the code, and the sticker says where
+// note carries the acquisition line and the pin number (plus the sticker code, for a pin you hold), and the sticker says where
 // the pin is now. Two destinations, so two links: the card goes to the public
 // pin page, a chip under it goes to the private notes-and-photos page.
 export function HoldingCard({
   id,
-  slug,
+  pinNumber,
+  stickerLine,
   title,
   description,
   photoSrc,
@@ -28,7 +29,8 @@ export function HoldingCard({
   pending,
 }: {
   id: string;
-  slug: string;
+  pinNumber: number;
+  stickerLine: string | null;
   title: string;
   description: string;
   photoSrc?: string;
@@ -39,7 +41,7 @@ export function HoldingCard({
   released?: boolean;
   pending?: boolean;
 }) {
-  const { color, photoTilt, paperTilt, stickerColor, stickerTilt, photoPinColor, paperPinColor } = pinCardStyle(slug);
+  const { color, photoTilt, paperTilt, stickerColor, stickerTilt, photoPinColor, paperPinColor } = pinCardStyle(String(pinNumber));
   const sticker = stickerFor({ pending, released, currentLocation, placeLabel });
   const chip =
     "rounded-full bg-navy/90 px-3 py-1 text-xs font-medium text-accent shadow hover:bg-navy hover:text-accent-hover";
@@ -47,7 +49,7 @@ export function HoldingCard({
   return (
     <div className="flex flex-col items-center gap-3 rounded-lg p-2">
       <Link
-        href={`/p/${slug}`}
+        href={`/p/${pinNumber}`}
         className="flex w-full flex-col items-center gap-5 transition-transform hover:-translate-y-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cream"
       >
         {/* Same left offset and width as the photo below, so the name sits
@@ -89,7 +91,10 @@ export function HoldingCard({
               <p className="line-clamp-2 font-hand text-lg leading-7 text-ink">
                 {formatAcquisition(acquiredVia, placeLabel, acquiredAt)}
               </p>
-              <p className="truncate font-mono text-[11px] leading-7 text-ink/60">{slug}</p>
+              <p className="truncate font-mono text-[11px] leading-7 text-ink/60">
+                Pin #{pinNumber}
+                {stickerLine && ` · ${stickerLine}`}
+              </p>
             </TornPaper>
           </div>
         </div>
@@ -100,7 +105,7 @@ export function HoldingCard({
           Notes &amp; photos
         </Link>
         {released && (
-          <Link href={`/p/${slug}`} className={chip}>
+          <Link href={`/p/${pinNumber}`} className={chip}>
             See where it went &rarr;
           </Link>
         )}

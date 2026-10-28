@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
-import { registerPin, type RegisterState } from "./actions";
+import type { RegisterState } from "@/lib/register-form";
 
 const ACQUIRED_VIA_OPTIONS = [
   { value: "BOUGHT", label: "Bought it" },
@@ -11,8 +11,18 @@ const ACQUIRED_VIA_OPTIONS = [
   { value: "OTHER", label: "Other" },
 ] as const;
 
-export function RegisterForm({ slug }: { slug: string }) {
-  const action = registerPin.bind(null, slug);
+// The how/when/where form for a pin's first holding, bound to whichever
+// server action the page wants — registering with a sticker, or adding a
+// pin that has none yet.
+export function PinRegistrationForm({
+  action,
+  submitLabel = "Register this pin",
+  pendingLabel = "Registering…",
+}: {
+  action: (prevState: RegisterState, formData: FormData) => Promise<RegisterState>;
+  submitLabel?: string;
+  pendingLabel?: string;
+}) {
   const [state, formAction, pending] = useActionState<RegisterState, FormData>(action, {
     status: "idle",
   });
@@ -61,7 +71,7 @@ export function RegisterForm({ slug }: { slug: string }) {
         disabled={pending}
         className="rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-60"
       >
-        {pending ? "Registering…" : "Register this pin"}
+        {pending ? pendingLabel : submitLabel}
       </button>
       {state.status === "error" && <p className="text-sm text-red-600">{state.message}</p>}
     </form>

@@ -427,6 +427,44 @@ Pushed to `main` in commit `bd08c61` — deployed via the usual Vercel auto-depl
 `scripts/make-sticker-sheet.mjs`'s local changes (still the same ones from earlier in HANDOFF's
 history) were left out of this commit, deliberately, same as every other push so far.
 
+## Sticker/pin split and the sticker-less tier (2026-10-28) — built locally, NOT pushed, migration NOT applied
+
+Product direction (user's): a free tier where you can add pins you own with no sticker, but a pin
+can only **wander** (be released, claimed by someone else, log new locations) once a sticker is
+attached. Wandering is gated by owning a sticker, not by a paid plan; later paid tiers are for
+limits like photos/pin counts (nothing tier-shaped is built — no `plan` column). And the sticker's
+code must never be visible to anyone but the pin's current holder, so scraping the public site can't
+yield codes to claim. The old design couldn't do that: `pins.slug` was the printed code, the public
+URL key and the claim key at once, and `/pins` published a `/p/{slug}` link for every pin.
+
+- **Schema** (`prisma/schema.prisma`): new `Sticker` (`code` unique, `batch_id`, nullable-unique
+  `pin_id`, `attached_at`). `Pin` lost `slug`/`status`/`batch_id`/`registered_at` and gained
+  `number` (SERIAL, the public ID). `PinStatus` enum is gone — minted-but-unused is now "a sticker
+  with no pin".
+- **Migration**: `prisma/migrations/20261028000000_split_sticker_from_pin/migration.sql`,
+  hand-written with a backfill (existing slugs → stickers, MINTED pins deleted since a sticker row
+  now carries them). Cross-checked against `prisma migrate diff` from the live DB. **Not applied.**
+  Per Deviations #5 it must be pasted into the Supabase SQL editor, then
+  `npx prisma migrate resolve --applied 20261028000000_split_sticker_from_pin`. **There is no
+  separate dev DB, so applying it breaks the deployed site (which still reads `pins.slug`) until
+  this code is pushed and deployed** — apply and push together.
+- **Routes**: `/s/{code}` is the scan page (rate-limited, the only place "Claim this pin" appears),
+  `/s/{code}/claim` (was `/register/{slug}`; also the attach-to-existing-pin path), `/s/{code}/release`
+  (was `/trade/{slug}`), `/p/{number}` is the public view-only page, `/pins/new` adds a sticker-less
+  pin, `/api/pins/{number}/photo`. `wpins.co/{code}` now redirects to `/s/{code}`. The journey page
+  body is `src/components/PinView.tsx`, shared by `/p` and `/s`.
+- **Sticker-less rules**: such a pin has one holding; `addCheckIn` and the holdings page check for a
+  sticker, release/claim start from a code so they can't happen. The public page shows a "hasn't
+  received its passport yet" notice (a buy-stickers link goes there later).
+- **Code visibility**: only the current holder sees it — pin page and My Pins. `sticker.integration.test.ts`
+  asserts it never appears in the `/pins` directory output.
+- Also fixed in passing: the public photo route could serve a *pending* claimant's front photo
+  (it filtered only on `releasedAt: null`); it now requires `pending: false`.
+- **Naming**: `src/lib/slug.ts` and `parseSlug` still say "slug" for the sticker code format.
+- **Verified**: `tsc` (source clean; stale `.next` validators mention the old routes until `next dev`
+  regenerates them), `eslint`, and 92 non-DB unit tests pass. **Not verified**: the integration tests
+  (they need the migration applied) and any live click-through — both wait on the migration.
+
 ## Branding mockup (2026-10-27) — live on `main` (commit `98ddce3`)
 
 A visual rebrand from a Claude Cowork design export (a cork-board logo and an "on navy" logo). **Pure presentation: no schema, data, server-action, or access-control changes.** It was built on the branch `brand-mockup` (kept unpushed while the user reviewed mockups), then — on the user's explicit say-so — fast-forwarded into `main` and pushed, so it auto-deployed to production. The follow-ups below (My pins, the pin-page edit mode, the two phone fixes) were built on later local branches and shipped the same way, as one fast-forward to `b490393`; the branches `my-pins-cork`, `pin-edit-mode` and `handoff-shipped-note` are identical to or behind `main` and can be deleted. A local `npm run build` passed first (all 13 routes). The branch also exists on `origin`; it's identical to `main` at that commit and can be deleted. `WANDERING_PINS_BRIEF.md` is untouched (nothing behavioral changed). To undo the rebrand, revert `98ddce3`.
@@ -481,8 +519,8 @@ The brief got some things right in principle but wrong in a couple of real-world
 
 ## Useful scripts
 
-- `node scripts/mint-batch.ts <label> <quantity> [outDir]` — mint N real pins + QR PNGs + manifest.
-- `npx tsx --env-file=.env scripts/mint-one.ts` — mint a single `MINTED` pin (prints its slug), no QR/manifest — the quick way to get a throwaway pin for manual testing without a whole batch.
+- `node scripts/mint-batch.ts <label> <quantity> [outDir]` — mint N real unattached stickers + QR PNGs + manifest.
+- `npx tsx --env-file=.env scripts/mint-one.ts` — mint a single unattached sticker (prints its code), no QR/manifest — the quick way to get a throwaway sticker for manual testing without a whole batch.
 - `node scripts/make-sticker-sheet.mjs <batchDir> [codeSizeMm=6] [outPath]` — true-size printable PDF sheet from a mint-batch output dir, laid out as an auto-paginating grid (as many stickers per LETTER page as fit, spilling to further pages for larger batches). Must print at 100%/actual size, not "fit to page" — see Deviations #7 for the settled sticker shape/sizing this now draws.
 - `npx tsx --env-file=.env scripts/gen-test-link.ts [email]` — mint a real Supabase session token via the admin API, for testing auth-gated flows without an inbox round-trip. For a brand-new email this is a signup token (`type=signup`), not `magiclink` — use whichever `type` the script's own output reports. Since onboarding shipped, a fresh account landing anywhere via `/auth/confirm` gets redirected to `/onboarding` first (pick a username + password) before reaching wherever `next` pointed — that's expected, not a bug.
 - If testing locally with two accounts side by side in the Browser pane, remember tabs in the same browser instance **share one cookie jar** — signing in as a second user in a new tab silently switches the first tab's session too. Re-authenticate (fresh `gen-test-link.ts` token) whichever account you need to check next rather than assuming an old tab still reflects an old session.

@@ -87,7 +87,7 @@ export async function updateHoldingNote(holdingId: string, _prevState: ActionSta
 
 // Narrower than updateHoldingDetails above — touches only PinTitle's
 // description, leaving the title itself alone. Used by the top-of-page
-// public description widget on /p/[slug] (src/components/
+// public description widget on /p/[number] (src/components/
 // PinDescriptionWidget.tsx), which only ever shows a description textarea,
 // not the full holdings-page form.
 export async function updateDescription(holdingId: string, _prevState: ActionState, formData: FormData): Promise<ActionState> {
@@ -120,7 +120,7 @@ export async function updateDescription(holdingId: string, _prevState: ActionSta
 const MAX_TITLE_LENGTH = 80;
 
 // Narrower than updateHoldingDetails — touches only PinTitle's title, leaving
-// the description alone. Used by the name pill on /p/[slug] (src/components/
+// the description alone. Used by the name pill on /p/[number] (src/components/
 // PinTitleWidget.tsx) in edit mode. Revalidates the pin page itself, since
 // that's the page the holder is looking at.
 export async function updateTitle(holdingId: string, _prevState: ActionState, formData: FormData): Promise<ActionState> {
@@ -145,8 +145,8 @@ export async function updateTitle(holdingId: string, _prevState: ActionState, fo
     await prisma.pinTitle.deleteMany({ where: { holdingId } });
   }
 
-  const pin = await prisma.pin.findUnique({ where: { id: holding.pinId }, select: { slug: true } });
-  if (pin) revalidatePath(`/p/${pin.slug}`);
+  const pin = await prisma.pin.findUnique({ where: { id: holding.pinId }, select: { number: true } });
+  if (pin) revalidatePath(`/p/${pin.number}`);
   revalidatePath(`/holdings/${holdingId}`);
   return { status: "ok" };
 }

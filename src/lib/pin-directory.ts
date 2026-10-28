@@ -3,11 +3,11 @@ import { resolveHolderDisplayName } from "@/lib/timeline";
 
 // One row in the public pins database (/pins) — same structured-only
 // discipline as PublicHolding in public-pin.ts: title/description/photo are
-// exposed here for exactly the same reason they're exposed on /p/[slug]
+// exposed here for exactly the same reason they're exposed on /p/[number]
 // (brief section 7's narrow, explicit exception), never anything private
 // (notes, non-front photos, check-in content).
 export type DirectoryPin = {
-  slug: string;
+  number: number;
   title: string;
   description: string;
   hasPhoto: boolean;
@@ -20,7 +20,7 @@ export type DirectorySort = "mostTraveled" | "newest" | "title";
 
 const PAGE_SIZE = 25;
 
-// Loads every registered pin's public-facing summary in one query rather
+// Loads every pin's public-facing summary in one query rather
 // than pushing search/sort/pagination into SQL. Simple, and matches this
 // codebase's existing style (my-pins does an equivalent whole-set join in
 // JS rather than raw SQL) — but it does mean every request re-scans the
@@ -29,10 +29,9 @@ const PAGE_SIZE = 25;
 // revisit with a real DB-side query if that ever stops being true.
 async function loadAllDirectoryPins(): Promise<DirectoryPin[]> {
   const pins = await prisma.pin.findMany({
-    where: { status: "REGISTERED" },
     select: {
-      slug: true,
-      registeredAt: true,
+      number: true,
+      createdAt: true,
       holdings: {
         where: { pending: false },
         select: {
@@ -54,13 +53,13 @@ async function loadAllDirectoryPins(): Promise<DirectoryPin[]> {
       0
     );
     return {
-      slug: pin.slug,
+      number: pin.number,
       title: openHolding?.title?.title.trim() || "Untitled Pin",
       description: openHolding?.title?.description?.trim() || "",
       hasPhoto: !!openHolding?.photos[0],
       holderDisplayName: openHolding ? resolveHolderDisplayName(openHolding.user) : null,
       verifiedCount,
-      registeredAt: pin.registeredAt!,
+      registeredAt: pin.createdAt,
     };
   });
 }

@@ -1,4 +1,4 @@
-// Minimal dev-only seed: one sticker batch, one registered pin with a
+// Minimal dev-only seed: one sticker batch, one pin carrying its sticker, with a
 // three-city journey, matching the brief's worked example (section
 // "Appendix — worked example"). Run with: node prisma/seed.ts
 import { randomUUID } from "node:crypto";
@@ -10,7 +10,7 @@ async function main() {
     data: { label: "dev-seed", quantity: 1 },
   });
 
-  const slug = generateSlug();
+  const code = generateSlug();
 
   // These are demo users, not real Supabase Auth accounts — id is normally
   // the Supabase auth UUID (see schema comment on User.id), so we mint a
@@ -38,10 +38,8 @@ async function main() {
 
   const pin = await prisma.pin.create({
     data: {
-      slug,
-      batchId: batch.id,
-      status: "REGISTERED",
-      registeredAt: new Date("2024-03-01T00:00:00Z"),
+      createdAt: new Date("2024-03-01T00:00:00Z"),
+      sticker: { create: { code, batchId: batch.id, attachedAt: new Date("2024-03-01T00:00:00Z") } },
       holdings: {
         create: [
           {
@@ -75,7 +73,7 @@ async function main() {
     },
   });
 
-  console.log(`Seeded pin ${pin.slug} — view at /p/${pin.slug}`);
+  console.log(`Seeded pin #${pin.number} (sticker ${code}) — view at /p/${pin.number}, scan at /s/${code}`);
 }
 
 main()
