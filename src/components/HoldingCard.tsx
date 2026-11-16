@@ -3,7 +3,6 @@ import type { AcquiredVia } from "@/generated/prisma/client";
 import { formatAcquisition } from "@/lib/timeline";
 import { pinCardStyle } from "@/lib/pin-card-style";
 import { shortPlace } from "@/lib/place";
-import { cardSides } from "@/components/card-sides";
 import { PinNamePill } from "@/components/PinNamePill";
 import { PinPhotoFrame } from "@/components/PinPhotoFrame";
 import { PinSticker } from "@/components/PinSticker";
@@ -29,7 +28,6 @@ export function HoldingCard({
   currentLocation,
   released,
   pending,
-  mirrored = false,
 }: {
   id: string;
   pinNumber: number;
@@ -43,13 +41,10 @@ export function HoldingCard({
   currentLocation: string | null;
   released?: boolean;
   pending?: boolean;
-  /** Photo on the right, note on the left (see cardSidesFor). */
-  mirrored?: boolean;
 }) {
   const { color, photoTilt, paperTilt, stickerColor, stickerTilt, photoPinColor, paperPinColor } = pinCardStyle(
     String(pinNumber)
   );
-  const side = cardSides(mirrored);
   const sticker = stickerFor({ pending, released, currentLocation, placeLabel });
   const chip =
     "rounded-full bg-navy/90 px-3 py-1 text-xs font-medium text-accent shadow hover:bg-navy hover:text-accent-hover";
@@ -62,14 +57,14 @@ export function HoldingCard({
       >
         {/* Same left offset and width as the photo below, so the name sits
             centered over its pin rather than over the whole card. */}
-        <div className={`flex w-40 justify-center ${side.photo}`}>
+        <div className="ml-3 flex w-40 justify-center self-start">
           <PinNamePill as="h2" size="sm" color={color}>
             {title}
           </PinNamePill>
         </div>
 
         <div className="flex w-full flex-col">
-          <div className={`relative ${side.photo}`}>
+          <div className="relative ml-3 self-start">
             <PinPhotoFrame tilt={photoTilt} pinColor={photoPinColor}>
               {photoSrc ? (
                 // eslint-disable-next-line @next/next/no-img-element -- private, per-user image behind an auth-gated route, same as the holding detail page
@@ -80,7 +75,7 @@ export function HoldingCard({
             </PinPhotoFrame>
 
             <PinSticker
-              className={`absolute -bottom-9 z-10 ${side.sticker}`}
+              className="absolute -bottom-9 -left-6 z-10 sm:-left-11"
               kicker={sticker.kicker}
               headline={sticker.headline}
               srText={sticker.srText}
@@ -91,7 +86,7 @@ export function HoldingCard({
 
           {/* Always present here (there's always an acquisition line), unlike
               /pins where the note exists only for pins with a description. */}
-          <div className={`-mt-8 ${side.note}`}>
+          <div className="-mt-8 self-end">
             <TornPaper compact tilt={paperTilt} pinColor={paperPinColor}>
               {description && (
                 <p className="line-clamp-2 whitespace-pre-wrap font-hand text-xl leading-7 text-ink">{description}</p>

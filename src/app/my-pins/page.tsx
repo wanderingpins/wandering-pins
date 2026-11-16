@@ -4,7 +4,6 @@ import type { AcquiredVia } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireAppUser } from "@/lib/auth";
 import { formatAcquisition } from "@/lib/timeline";
-import { cardSidesFor } from "@/lib/pin-card-style";
 import { CorkWall } from "@/components/CorkWall";
 import { HoldingCard } from "@/components/HoldingCard";
 import { PinLookupForm } from "@/components/PinLookupForm";
@@ -60,9 +59,8 @@ export default async function MyPinsPage({ searchParams }: Props) {
     pending: kind === "pending" ? true : undefined,
   });
 
-  const render = (items: typeof holdings, kind: Kind) => {
-    const sides = cardSidesFor(items.map((h) => String(h.pin.number)));
-    return view === "list" ? (
+  const render = (items: typeof holdings, kind: Kind) =>
+    view === "list" ? (
       <ul className="mt-3 divide-y divide-neutral-200">
         {items.map((h) => (
           <HoldingRow key={h.id} {...baseProps(h, kind)} title={h.title?.title} photoId={h.photos[0]?.id} />
@@ -70,11 +68,10 @@ export default async function MyPinsPage({ searchParams }: Props) {
       </ul>
     ) : (
       <CorkWall className="mt-3">
-        {items.map((h, i) => (
+        {items.map((h) => (
           <li key={h.id}>
             <HoldingCard
               {...baseProps(h, kind)}
-              mirrored={sides[i]}
               title={h.title?.title.trim() || h.placeLabel}
               description={h.title?.description?.trim() || ""}
               photoSrc={h.photos[0] ? `/api/holdings/${h.id}/photos/${h.photos[0].id}` : undefined}
@@ -83,7 +80,6 @@ export default async function MyPinsPage({ searchParams }: Props) {
         ))}
       </CorkWall>
     );
-  };
 
   return (
     <main className="pb-10">

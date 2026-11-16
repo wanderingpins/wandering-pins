@@ -1,7 +1,6 @@
 import Link from "next/link";
 import type { DirectoryPin } from "@/lib/pin-directory";
 import { pinCardStyle } from "@/lib/pin-card-style";
-import { cardSides } from "@/components/card-sides";
 import { PinNamePill } from "@/components/PinNamePill";
 import { PinPhotoFrame } from "@/components/PinPhotoFrame";
 import { PinSticker } from "@/components/PinSticker";
@@ -9,14 +8,12 @@ import { TornPaper } from "@/components/TornPaper";
 
 // A smaller version of the /p/[number] cork scene, for the /pins cork view: name
 // in enamel on top, photo print, and a note pinned over the photo's lower
-// corner. `mirrored` (from cardSidesFor, by position on the wall) flips it to
-// photo right, note left, so a wall of them doesn't look stamped out. Every field here is already public on
-// /p/[number] (see pin-directory.ts).
-export function PinCard({ pin, mirrored = false }: { pin: DirectoryPin; mirrored?: boolean }) {
+// right. Every field here is already public on /p/[number] (see
+// pin-directory.ts).
+export function PinCard({ pin }: { pin: DirectoryPin }) {
   const { color, photoTilt, paperTilt, stickerColor, stickerTilt, photoPinColor, paperPinColor } = pinCardStyle(
     String(pin.number)
   );
-  const side = cardSides(mirrored);
   const holderSentence = pin.holderDisplayName ? `Currently with ${pin.holderDisplayName}` : "Not currently held by anyone";
 
   return (
@@ -24,16 +21,16 @@ export function PinCard({ pin, mirrored = false }: { pin: DirectoryPin; mirrored
       href={`/p/${pin.number}`}
       className="group flex flex-col items-center gap-5 rounded-lg p-2 transition-transform hover:-translate-y-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cream"
     >
-      {/* Same side offset and width as the photo below, so the name sits
+      {/* Same left offset and width as the photo below, so the name sits
           centered over its pin rather than over the whole card. */}
-      <div className={`flex w-40 justify-center ${side.photo}`}>
+      <div className="ml-3 flex w-40 justify-center self-start">
         <PinNamePill as="h2" size="sm" color={color}>
           {pin.title}
         </PinNamePill>
       </div>
 
       <div className="flex w-full flex-col">
-        <div className={`relative ${side.photo}`}>
+        <div className="relative ml-3 self-start">
           <PinPhotoFrame tilt={photoTilt} pinColor={photoPinColor}>
             {pin.hasPhoto ? (
               // eslint-disable-next-line @next/next/no-img-element -- served through the same public per-pin photo route as /p/[number]
@@ -46,7 +43,7 @@ export function PinCard({ pin, mirrored = false }: { pin: DirectoryPin; mirrored
           {/* Stuck over the photo's outer lower corner, on top of everything.
               The verified count only appears once there is at least one. */}
           <PinSticker
-            className={`absolute -bottom-9 z-10 ${side.sticker}`}
+            className="absolute -bottom-9 -left-6 z-10 sm:-left-11"
             kicker={pin.holderDisplayName ? "With" : undefined}
             headline={pin.holderDisplayName ?? "UP FOR GRABS"}
             count={pin.verifiedCount > 0 ? { value: pin.verifiedCount, label: "Verified" } : undefined}
@@ -62,7 +59,7 @@ export function PinCard({ pin, mirrored = false }: { pin: DirectoryPin; mirrored
 
         {/* The note is just the description now; no description, no note. */}
         {pin.description && (
-          <div className={`-mt-8 ${side.note}`}>
+          <div className="-mt-8 self-end">
             <TornPaper compact tilt={paperTilt} pinColor={paperPinColor}>
               <p className="line-clamp-3 whitespace-pre-wrap font-hand text-xl leading-7 text-ink">{pin.description}</p>
             </TornPaper>

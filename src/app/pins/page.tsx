@@ -4,7 +4,6 @@ import { CorkWall } from "@/components/CorkWall";
 import { PinCard } from "@/components/PinCard";
 import { ViewToggle, type View } from "@/components/ViewToggle";
 import { loadDirectoryPage, type DirectorySort } from "@/lib/pin-directory";
-import { cardSidesFor } from "@/lib/pin-card-style";
 
 // Public, no authentication (brief section 6.1's spirit extended to a
 // browsable index rather than one pin at a time) — rate-limited the same
@@ -35,7 +34,6 @@ export default async function PinsDirectoryPage({ searchParams }: Props) {
   const view = rawView ?? "cork";
 
   const { pins, page: currentPage, pageCount, total } = await loadDirectoryPage({ search: q, sort, page });
-  const sides = cardSidesFor(pins.map((p) => String(p.number)));
 
   return (
     <main>
@@ -127,9 +125,9 @@ export default async function PinsDirectoryPage({ searchParams }: Props) {
       ) : (
         // Cork is the default view: a board of small pin scenes.
         <CorkWall>
-          {pins.map((pin, i) => (
+          {pins.map((pin) => (
             <li key={pin.number}>
-              <PinCard pin={pin} mirrored={sides[i]} />
+              <PinCard pin={pin} />
             </li>
           ))}
         </CorkWall>

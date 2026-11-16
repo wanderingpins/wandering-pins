@@ -105,27 +105,6 @@ export type PinCardStyle = {
   paperPinColor: string;
 };
 
-// Cork cards: for each card on a wall, in order, whether it's mirrored (photo
-// on the right, note on the left) instead of the usual photo-left /
-// note-lower-right. Mostly alternates, so it reads as a mix even on a phone's
-// single column; about one card in four repeats the previous side instead (the
-// pin decides, so a given list looks the same every visit), but never three
-// in a row on the same side.
-export function cardSidesFor(slugs: string[]): boolean[] {
-  const sides: boolean[] = [];
-  slugs.forEach((slug, i) => {
-    const h = hash(`${slug}:side`);
-    if (i === 0) {
-      sides.push(h % 2 === 1);
-      return;
-    }
-    const prev = sides[i - 1];
-    const repeat = h % 4 === 0 && !(i >= 2 && sides[i - 2] === prev);
-    sides.push(repeat ? prev : !prev);
-  });
-  return sides;
-}
-
 export function pinCardStyle(slug: string): PinCardStyle {
   // (Salts are arbitrary; these give the pins that existed when this was
   // written all-different pin colors. Over many pins any salt is equally random.)
