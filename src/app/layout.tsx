@@ -2,6 +2,8 @@ import type { Metadata, Viewport } from "next";
 import { Bricolage_Grotesque, Caveat, Geist_Mono, Space_Grotesk, Titan_One } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
 import { SiteHeader } from "@/components/SiteHeader";
+import { SiteFooter } from "@/components/SiteFooter";
+import { NavTracker } from "@/components/BackButton";
 import "./globals.css";
 
 // Brand fonts: Bricolage Grotesque for the logo/headings, Space Grotesk for UI text.
@@ -51,6 +53,8 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <body className="min-h-full flex flex-col">
         <SiteHeader />
         {children}
+        <SiteFooter />
+        <NavTracker />
         <Analytics />
       </body>
     </html>

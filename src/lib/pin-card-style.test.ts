@@ -6,6 +6,7 @@ import {
   PIN_STICKER_COLORS,
   journalEntryStyle,
   journalPhotoTilt,
+  cardSidesFor,
   pinCardStyle,
 } from "./pin-card-style";
 
@@ -46,6 +47,18 @@ describe("pinCardStyle", () => {
       return photoTilt === paperTilt;
     });
     expect(same.length).toBeLessThan(SLUGS.length / 2);
+  });
+
+  it("mostly alternates card sides down the wall, never three in a row", () => {
+    const many = Array.from({ length: 200 }, (_, i) => String(i + 1));
+    const sides = cardSidesFor(many);
+    const switches = sides.slice(1).filter((m, i) => m !== sides[i]).length;
+    expect(switches).toBeGreaterThan(many.length / 2);
+    expect(switches).toBeLessThan(many.length - 1); // some repeats, not strict alternation
+    for (let i = 2; i < sides.length; i++) {
+      expect(sides[i] === sides[i - 1] && sides[i - 1] === sides[i - 2]).toBe(false);
+    }
+    expect(cardSidesFor(SLUGS)).toEqual(cardSidesFor(SLUGS));
   });
 
   it("uses more than one color across different slugs", () => {

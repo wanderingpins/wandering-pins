@@ -3,7 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { requireAppUser } from "@/lib/auth";
+import { isAdminEmail, requireAppUser } from "@/lib/auth";
+import { processHoldingPhoto } from "@/lib/image";
+import { MAX_RAW_UPLOAD_BYTES } from "@/lib/photo-limits";
+import { deleteHoldingPhoto, uploadHoldingPhoto } from "@/lib/storage";
 import { normalizeSeriesKey, MAX_SERIES_NAME_LENGTH, MAX_SERIES_ITEM_LABEL_LENGTH } from "@/lib/series";
 
 export type ActionState = { status: "idle" | "ok" | "error"; message?: string };
@@ -146,6 +149,80 @@ export async function deleteSeries(seriesId: string) {
   if (!series || series.createdBy !== user.id || series._count.items > 0) return;
   await prisma.series.delete({ where: { id: seriesId } });
   redirect("/series");
+}
+
+// --- Reference images on series items (see SeriesItem.imagePath) ---
+
+const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
+
+// Anyone signed in can give an item its first image; after that only whoever
+// added it (or an admin) can replace or remove it, so a picture someone took
+// the trouble to add can't be swapped out from under them.
+export async function setSeriesItemImage(
+  seriesId: string,
+  seriesItemId: string,
+  _prevState: ActionState,
+  formData: FormData
+): Promise<ActionState> {
+  const user = await requireAppUser(`/series/${seriesId}`);
+  const item = await prisma.seriesItem.findUnique({ where: { id: seriesItemId } });
+  if (!item || item.seriesId !== seriesId) return { status: "error", message: "That pin isn't in this series." };
+  if (item.imagePath && item.imageBy !== user.id && !isAdminEmail(user.email)) {
+    return { status: "error", message: "Someone else added this picture, so only they can change it." };
+  }
+
+  const file = formData.get("photo");
+  if (!(file instanceof File) || file.size === 0) return { status: "error", message: "Choose a picture first." };
+  if (!ALLOWED_IMAGE_TYPES.includes(file.type)) return { status: "error", message: "Please use a JPEG, PNG, or WebP image." };
+  if (file.size > MAX_RAW_UPLOAD_BYTES) return { status: "error", message: "That image is too large (max 10MB)." };
+
+  const limitMessage = await assertNotOverCreationLimit(user.id);
+  if (limitMessage) return { status: "error", message: limitMessage };
+
+  let processed: Buffer;
+  try {
+    processed = await processHoldingPhoto(Buffer.from(await file.arrayBuffer()));
+  } catch {
+    return { status: "error", message: "That file doesn't look like a valid image." };
+  }
+  const path = await uploadHoldingPhoto(`series-items/${seriesItemId}`, processed, "image/jpeg");
+
+  // Set the new one before deleting the old file, so a failed delete leaves
+  // an orphaned file rather than an item pointing at nothing.
+  await prisma.seriesItem.update({
+    where: { id: seriesItemId },
+    data: { imagePath: path, imageBy: user.id, imageAddedAt: new Date() },
+  });
+  if (item.imagePath) await deleteHoldingPhoto(item.imagePath).catch(() => undefined);
+
+  revalidatePath(`/series/${seriesId}`);
+  return { status: "ok" };
+}
+
+export async function removeSeriesItemImage(seriesId: string, seriesItemId: string) {
+  const user = await requireAppUser(`/series/${seriesId}`);
+  const item = await prisma.seriesItem.findUnique({ where: { id: seriesItemId } });
+  if (!item?.imagePath || item.seriesId !== seriesId) return;
+  if (item.imageBy !== user.id && !isAdminEmail(user.email)) return;
+  await prisma.seriesItem.update({
+    where: { id: seriesItemId },
+    data: { imagePath: null, imageBy: null, imageAddedAt: null },
+  });
+  await deleteHoldingPhoto(item.imagePath).catch(() => undefined);
+  revalidatePath(`/series/${seriesId}`);
+}
+
+// Link (or re-link) one of your own pins to an item you've already claimed —
+// the claim itself already exists, so this only sets linkedPinId. The pin's
+// page then says "Part of the ... series".
+export async function linkPinToClaim(seriesId: string, seriesItemId: string, pinId: string) {
+  const user = await requireAppUser(`/series/${seriesId}`);
+  const owns = await prisma.pinHolding.findFirst({ where: { pinId, userId: user.id } });
+  if (!owns) return;
+  await prisma.seriesClaim.updateMany({ where: { seriesItemId, userId: user.id }, data: { linkedPinId: pinId } });
+  const pin = await prisma.pin.findUnique({ where: { id: pinId }, select: { number: true } });
+  revalidatePath(`/series/${seriesId}`);
+  if (pin) revalidatePath(`/p/${pin.number}`);
 }
 
 function seriesUrl(id: string, linkPin: string): string {

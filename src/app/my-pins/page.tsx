@@ -4,6 +4,7 @@ import type { AcquiredVia } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireAppUser } from "@/lib/auth";
 import { formatAcquisition } from "@/lib/timeline";
+import { cardSidesFor } from "@/lib/pin-card-style";
 import { CorkWall } from "@/components/CorkWall";
 import { HoldingCard } from "@/components/HoldingCard";
 import { PinLookupForm } from "@/components/PinLookupForm";
@@ -59,8 +60,9 @@ export default async function MyPinsPage({ searchParams }: Props) {
     pending: kind === "pending" ? true : undefined,
   });
 
-  const render = (items: typeof holdings, kind: Kind) =>
-    view === "list" ? (
+  const render = (items: typeof holdings, kind: Kind) => {
+    const sides = cardSidesFor(items.map((h) => String(h.pin.number)));
+    return view === "list" ? (
       <ul className="mt-3 divide-y divide-neutral-200">
         {items.map((h) => (
           <HoldingRow key={h.id} {...baseProps(h, kind)} title={h.title?.title} photoId={h.photos[0]?.id} />
@@ -68,10 +70,11 @@ export default async function MyPinsPage({ searchParams }: Props) {
       </ul>
     ) : (
       <CorkWall className="mt-3">
-        {items.map((h) => (
+        {items.map((h, i) => (
           <li key={h.id}>
             <HoldingCard
               {...baseProps(h, kind)}
+              mirrored={sides[i]}
               title={h.title?.title.trim() || h.placeLabel}
               description={h.title?.description?.trim() || ""}
               photoSrc={h.photos[0] ? `/api/holdings/${h.id}/photos/${h.photos[0].id}` : undefined}
@@ -80,12 +83,18 @@ export default async function MyPinsPage({ searchParams }: Props) {
         ))}
       </CorkWall>
     );
+  };
 
   return (
     <main className="pb-10">
       <div className="mx-auto max-w-2xl px-4 pt-10">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h1 className="text-2xl font-semibold">My pins</h1>
+          <div className="flex items-baseline gap-4">
+            <h1 className="text-2xl font-semibold">My pins</h1>
+            <Link href="/series#mine" className="text-sm text-accent hover:underline">
+              My series &rarr;
+            </Link>
+          </div>
           <ViewToggle view={view} basePath="/my-pins" />
         </div>
 

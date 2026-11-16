@@ -346,14 +346,27 @@ model Series {
 
 // One slot/design within a series (e.g. "4 of 12: Donut"). `position` is
 // optional — not every set is numbered.
+//
+// `imagePath` (added 2026-11): a reference picture of what this design looks
+// like, so collectors can tell whether they have it. This REVERSES the
+// "text-only catalog" rule above, by user decision, with these limits: one
+// image per item; any signed-in user may add one to an item that has none;
+// only the person who added it (`imageBy`) or a site admin can replace or
+// remove it; admins review new images on /admin. Stored in the same private
+// bucket as holding photos, served publicly via /api/series-items/{id}/image.
+// `imageBy` is a plain user id, not a relation, so deleting a user record
+// never needs to touch it.
 model SeriesItem {
-  id        String   @id @default(cuid())
-  seriesId  String   @map("series_id")
-  label     String
-  labelKey  String   @map("label_key")
-  position  Int?
-  createdBy String   @map("created_by")
-  createdAt DateTime @default(now()) @map("created_at")
+  id           String    @id @default(cuid())
+  seriesId     String    @map("series_id")
+  label        String
+  labelKey     String    @map("label_key")
+  position     Int?
+  createdBy    String    @map("created_by")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  imagePath    String?   @map("image_path")
+  imageBy      String?   @map("image_by")
+  imageAddedAt DateTime? @map("image_added_at")
 
   series  Series        @relation(fields: [seriesId], references: [id])
   creator User          @relation(fields: [createdBy], references: [id])

@@ -73,10 +73,15 @@ export function PinSticker({
     <Starburst color={color} tilt={tilt} className={className} srText={srText}>
       {kicker && <span className="text-[9px] font-bold tracking-[0.2em]">{kicker}</span>}
       {/* With a count underneath the headline stays on one line; on its own
-          it gets two, since there's room. */}
+          it gets up to three, and a long one ("San Francisco, CA") drops a
+          size so it fits whole instead of ending in "...". */}
       <span
-        className={`mt-0.5 max-w-[4.75rem] break-words font-extrabold normal-case ${
-          count ? "truncate text-xs" : "line-clamp-2 text-[13px] leading-[1.1]"
+        className={`mt-0.5 max-w-[5.5rem] break-words font-extrabold normal-case ${
+          count
+            ? "truncate text-xs"
+            : headline.length > 12
+              ? "line-clamp-3 text-[11px] leading-[1.1]"
+              : "line-clamp-2 text-[13px] leading-[1.1]"
         }`}
       >
         {headline}

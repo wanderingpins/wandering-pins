@@ -1,4 +1,4 @@
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { prisma } from "@/lib/prisma";
 import type { User } from "@/generated/prisma/client";
@@ -63,6 +63,28 @@ export async function requireAppUser(nextPath: string): Promise<User> {
   if (!user.username) {
     redirect(`/onboarding?next=${encodeURIComponent(nextPath)}`);
   }
+  return user;
+}
+
+// Site admins are listed by sign-in email in the ADMIN_EMAILS env var
+// (comma-separated, set in Vercel), not in the database: nobody can make
+// themselves an admin through the app, and adding or removing one is an env
+// change plus a redeploy. Unset = nobody is an admin.
+export function isAdminEmail(email: unknown): boolean {
+  if (typeof email !== "string" || !email) return false;
+  const admins = (process.env.ADMIN_EMAILS ?? "")
+    .split(",")
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean);
+  return admins.includes(email.toLowerCase());
+}
+
+// For the /admin pages and every admin server action — checked again inside
+// each action, since a server action can be called without loading the page.
+// Anyone else gets a plain 404, so the page doesn't advertise itself.
+export async function requireAdmin(): Promise<User> {
+  const user = await requireAppUser("/admin");
+  if (!isAdminEmail(user.email)) notFound();
   return user;
 }
 

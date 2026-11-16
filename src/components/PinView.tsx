@@ -26,6 +26,7 @@ import { PinPhotoWidget } from "@/components/PinPhotoWidget";
 import { PinNote } from "@/components/PinNote";
 import { EditOnly, EditPinSticker, PinEditProvider } from "@/components/PinEditMode";
 import { TornPaper } from "@/components/TornPaper";
+import { BackButton } from "@/components/BackButton";
 import { VerifyLocationButton } from "@/components/VerifyLocationButton";
 import { verifyHoldingLocation } from "@/app/holdings/[holdingId]/actions";
 import { verifyCheckInLocation } from "@/app/holdings/[holdingId]/checkin-actions";
@@ -126,7 +127,13 @@ export async function PinView({ pinNumber, scanCode }: { pinNumber: number; scan
   const seriesLink = openHolding
     ? await prisma.seriesClaim.findFirst({
         where: { linkedPinId: pin.id, userId: openHolding.userId },
-        include: { seriesItem: { include: { series: true } } },
+        // Only the fields shown, so this page never depends on newer
+        // series_items columns (e.g. the image ones) existing yet.
+        select: {
+          seriesItem: {
+            select: { label: true, position: true, series: { select: { id: true, name: true } } },
+          },
+        },
       })
     : null;
 
@@ -209,6 +216,7 @@ export async function PinView({ pinNumber, scanCode }: { pinNumber: number; scan
       <PinEditProvider>
         <CorkBoard className="px-4 py-8 sm:py-10">
           <div className="mx-auto flex w-full max-w-5xl flex-col items-center gap-10">
+            <BackButton className="-mb-4 self-start" />
             {isCurrentHolder ? (
               <PinTitleWidget holdingId={openHolding!.id} title={publicTitle} />
             ) : (
@@ -265,12 +273,25 @@ export async function PinView({ pinNumber, scanCode }: { pinNumber: number; scan
           {!sticker && <PassportNotice isHolder={isCurrentHolder} />}
 
           {seriesLink ? (
-            <p className="mt-3 text-sm text-neutral-600">
-              Part of a series:{" "}
-              <Link href={`/series/${seriesLink.seriesItem.series.id}`} className="font-medium text-accent hover:underline">
-                {seriesLink.seriesItem.series.name} — {seriesLink.seriesItem.label}
+            <div className="mt-3 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 rounded-lg border border-gold/60 px-4 py-3 text-center text-sm">
+              <span className="text-neutral-600">Part of a series:</span>
+              <Link
+                href={`/series/${seriesLink.seriesItem.series.id}?view=all`}
+                className="font-semibold text-cream hover:underline"
+              >
+                {seriesLink.seriesItem.series.name}
               </Link>
-            </p>
+              <span className="text-neutral-600">
+                {seriesLink.seriesItem.position != null && `#${seriesLink.seriesItem.position} `}
+                {seriesLink.seriesItem.label}
+              </span>
+              <Link
+                href={`/series/${seriesLink.seriesItem.series.id}?view=all#collectors`}
+                className="text-accent hover:underline"
+              >
+                Who else collects it
+              </Link>
+            </div>
           ) : (
             isCurrentHolder && (
               <EditOnly>
