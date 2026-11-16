@@ -2,7 +2,7 @@
 
 import { useActionState, useRef, useState } from "react";
 import type { Area } from "react-easy-crop";
-import { removeSeriesItemImage, setSeriesItemImage, type ActionState } from "@/app/series/actions";
+import { copyPinPhotoToItem, removeSeriesItemImage, setSeriesItemImage, type ActionState } from "@/app/series/actions";
 import { PhotoCropModal } from "@/app/holdings/[holdingId]/PhotoCropModal";
 import { cropPhotoToBlob } from "@/lib/crop-photo";
 
@@ -16,15 +16,24 @@ export function SeriesItemImageControl({
   itemId,
   hasImage,
   canChange,
+  pinPhoto,
 }: {
   seriesId: string;
   itemId: string;
   hasImage: boolean;
   /** You added the current picture, or you're an admin. */
   canChange: boolean;
+  /** Your pin linked to this design, when it has a photo: offers "Use my pin's photo". */
+  pinPhoto?: { pinId: string; pinNumber: number };
 }) {
   const [state, formAction, pending] = useActionState<ActionState, FormData>(
     setSeriesItemImage.bind(null, seriesId, itemId),
+    { status: "idle" }
+  );
+  // Copies the photo (a separate file), so later changes to your pin's photo
+  // never touch the series picture.
+  const [copyState, copyAction, copyPending] = useActionState<ActionState>(
+    async () => (pinPhoto ? copyPinPhotoToItem(seriesId, itemId, pinPhoto.pinId) : { status: "idle" }),
     { status: "idle" }
   );
   const [imageSrc, setImageSrc] = useState<string | null>(null);
@@ -69,8 +78,15 @@ export function SeriesItemImageControl({
   return (
     <div className="flex flex-wrap items-center justify-center gap-x-3">
       <input ref={inputRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
-      <button type="button" className={link} disabled={pending} onClick={() => inputRef.current?.click()}>
-        {pending ? "Uploading…" : hasImage ? "Replace picture" : "+ Add picture"}
+      {pinPhoto && (
+        <form action={copyAction}>
+          <button type="submit" className={link} disabled={copyPending || pending}>
+            {copyPending ? "Copying…" : `Use my pin #${pinPhoto.pinNumber}'s photo`}
+          </button>
+        </form>
+      )}
+      <button type="button" className={link} disabled={pending || copyPending} onClick={() => inputRef.current?.click()}>
+        {pending ? "Uploading…" : hasImage ? "Upload a different picture" : "+ Upload a picture"}
       </button>
       {hasImage && (
         <form action={removeSeriesItemImage.bind(null, seriesId, itemId)}>
@@ -79,8 +95,10 @@ export function SeriesItemImageControl({
           </button>
         </form>
       )}
-      {(pickError || state.status === "error") && (
-        <p className="w-full text-center text-xs text-red-600">{pickError ?? state.message}</p>
+      {(pickError || state.status === "error" || copyState.status === "error") && (
+        <p className="w-full text-center text-xs text-red-600">
+          {pickError ?? (state.status === "error" ? state.message : copyState.message)}
+        </p>
       )}
       {imageSrc && <PhotoCropModal imageSrc={imageSrc} onCancel={close} onConfirm={handleConfirm} pending={pending} />}
     </div>

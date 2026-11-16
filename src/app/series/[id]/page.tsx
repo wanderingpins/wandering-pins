@@ -5,9 +5,10 @@ import { prisma } from "@/lib/prisma";
 import { getAuthClaims, isAdminEmail } from "@/lib/auth";
 import { BEST_EFFORT_AUTH_TIMEOUT_MS } from "@/lib/with-timeout";
 import { resolveHolderDisplayName } from "@/lib/timeline";
-import { claimItem, unclaimItem, deleteSeriesItem, linkPinToClaim } from "@/app/series/actions";
+import { claimItem, unclaimItem, deleteSeriesItem, setClaimLinkedPin } from "@/app/series/actions";
 import { AddSeriesItemForm } from "@/components/AddSeriesItemForm";
 import { SeriesItemImageControl } from "@/components/SeriesItemImageControl";
+import { LinkedPinSelect, type PinOption } from "@/components/LinkedPinSelect";
 
 const searchParamsSchema = z.object({
   linkPin: z.string().max(64).optional(),
@@ -65,6 +66,28 @@ export default async function SeriesDetailPage({ params, searchParams }: Props) 
         })
       : null;
   const canLinkPin = !!linkPinRow;
+
+  // The pins the viewer holds right now, for the "Which of your pins is it?"
+  // picker on each design they've claimed, and for "Use my pin's photo".
+  const myHoldings = viewerId
+    ? await prisma.pinHolding.findMany({
+        where: { userId: viewerId, releasedAt: null, pending: false },
+        orderBy: { acquiredAt: "desc" },
+        select: {
+          pinId: true,
+          pin: { select: { number: true } },
+          title: { select: { title: true } },
+          photos: { where: { kind: "FRONT" }, select: { id: true }, take: 1 },
+        },
+      })
+    : [];
+  const myPinOptions: PinOption[] = myHoldings.map((h) => ({
+    id: h.pinId,
+    label: `#${h.pin.number} ${h.title?.title.trim() || "Untitled Pin"}`,
+  }));
+  const myPinsWithPhoto = new Map(
+    myHoldings.filter((h) => h.photos.length > 0).map((h) => [h.pinId, h.pin.number] as const)
+  );
 
   // Everyone with at least one piece of this series. A collector who hides
   // their name is counted but never named or linked (same rule as the rest of
@@ -200,15 +223,30 @@ export default async function SeriesDetailPage({ params, searchParams }: Props) 
                 </p>
                 {ownClaim?.linkedPin && (
                   <Link href={`/p/${ownClaim.linkedPin.number}`} className="text-xs text-accent hover:underline">
-                    Your pin #{ownClaim.linkedPin.number}
+                    Linked to your pin #{ownClaim.linkedPin.number} &rarr;
                   </Link>
+                )}
+                {ownClaim && (myPinOptions.length > 0 || ownClaim.linkedPin) && (
+                  <LinkedPinSelect
+                    action={setClaimLinkedPin.bind(null, series.id, item.id)}
+                    itemLabel={item.label}
+                    value={ownClaim.linkedPinId ?? ""}
+                    options={
+                      // Keep a pin you've since traded away selectable, so the
+                      // picker still shows what it's linked to.
+                      ownClaim.linkedPinId && ownClaim.linkedPin && !myPinOptions.some((o) => o.id === ownClaim.linkedPinId)
+                        ? [...myPinOptions, { id: ownClaim.linkedPinId, label: `#${ownClaim.linkedPin.number} (no longer yours)` }]
+                        : myPinOptions
+                    }
+                  />
                 )}
 
                 {viewerId ? (
                   ownClaim ? (
                     <div className="flex flex-wrap justify-center gap-2">
                       {canLinkPin && ownClaim.linkedPinId !== linkPin && (
-                        <form action={linkPinToClaim.bind(null, series.id, item.id, linkPin!)}>
+                        <form action={setClaimLinkedPin.bind(null, series.id, item.id)}>
+                          <input type="hidden" name="pinId" value={linkPin} />
                           <button
                             type="submit"
                             className="rounded-md bg-brand px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-hover"
@@ -249,6 +287,13 @@ export default async function SeriesDetailPage({ params, searchParams }: Props) 
                     itemId={item.id}
                     hasImage={!!item.imagePath}
                     canChange={canChangeImage}
+                    // Offered when this design is linked to a pin you hold
+                    // that has a photo.
+                    pinPhoto={
+                      ownClaim?.linkedPinId && myPinsWithPhoto.has(ownClaim.linkedPinId)
+                        ? { pinId: ownClaim.linkedPinId, pinNumber: myPinsWithPhoto.get(ownClaim.linkedPinId)! }
+                        : undefined
+                    }
                   />
                 )}
                 {canDelete && (
