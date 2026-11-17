@@ -7,6 +7,7 @@ import {
   journalEntryStyle,
   journalPhotoTilt,
   pinCardStyle,
+  seriesTileStyle,
 } from "./pin-card-style";
 
 const SLUGS = ["1EKWD4F", "XHQFYGA", "TQH8CXQ", "XR37YG3", "B2B2B2B", "C3C3C3C", "D4D4D4D", "E5E5E5E", "F6F6F6F", "G7G7G7G"];
@@ -119,5 +120,19 @@ describe("journalPhotoTilt", () => {
     for (const t of tilts) expect(Math.abs(t)).toBeLessThanOrEqual(5 + 1e-9);
     expect(tilts.some((t) => t > 0)).toBe(true);
     expect(tilts.some((t) => t < 0)).toBe(true);
+  });
+});
+
+describe("seriesTileStyle", () => {
+  it("is deterministic, leans within -5 to +5 both ways, and uses the palettes", () => {
+    const styles = SLUGS.map(seriesTileStyle);
+    expect(SLUGS.map(seriesTileStyle)).toEqual(styles);
+    for (const s of styles) {
+      expect(Math.abs(s.tilt)).toBeLessThanOrEqual(5 + 1e-9);
+      expect(PIN_PUSHPIN_COLORS).toContain(s.pinColor);
+      expect(PIN_PILL_COLORS).toContain(s.pillColor);
+    }
+    expect(styles.some((s) => s.tilt > 0)).toBe(true);
+    expect(styles.some((s) => s.tilt < 0)).toBe(true);
   });
 });

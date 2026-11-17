@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-// Small links at the bottom of every page. `mt-auto` pushes it to the bottom
+// Small links at the bottom of every page (only what the header doesn't already have). `mt-auto` pushes it to the bottom
 // of the viewport on short pages (the body is a min-h-full flex column).
 export function SiteFooter() {
   const link = "px-2 py-2 hover:text-white";
@@ -12,9 +12,6 @@ export function SiteFooter() {
         </Link>
         <Link href="/how-it-works" className={link}>
           How it works
-        </Link>
-        <Link href="/series" className={link}>
-          Series
         </Link>
       </nav>
     </footer>

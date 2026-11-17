@@ -8,7 +8,9 @@ import { cropPhotoToBlob } from "@/lib/crop-photo";
 
 const MAX_SELECTION_BYTES = 25 * 1024 * 1024;
 
-// The small "Add picture" / "Replace" / "Remove" links under a series tile.
+// The small "Use my pin's photo" / "Upload a picture" / "Remove photo" links
+// under a series design. These set the SERIES picture, the one everybody sees
+// (your own checklist already shows your linked pin's photo just for you).
 // Same pick -> square crop -> upload flow as the pin photo, so a camera photo
 // is shrunk on the phone before it's sent.
 export function SeriesItemImageControl({
@@ -24,7 +26,7 @@ export function SeriesItemImageControl({
   /** You added the current picture, or you're an admin. */
   canChange: boolean;
   /** Your pin linked to this design, when it has a photo: offers "Use my pin's photo". */
-  pinPhoto?: { pinId: string; pinNumber: number };
+  pinPhoto?: { pinId: string };
 }) {
   const [state, formAction, pending] = useActionState<ActionState, FormData>(
     setSeriesItemImage.bind(null, seriesId, itemId),
@@ -76,12 +78,12 @@ export function SeriesItemImageControl({
   const link = "text-xs text-accent hover:underline disabled:opacity-60";
 
   return (
-    <div className="flex flex-wrap items-center justify-center gap-x-3">
+    <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1">
       <input ref={inputRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
       {pinPhoto && (
         <form action={copyAction}>
           <button type="submit" className={link} disabled={copyPending || pending}>
-            {copyPending ? "Copying…" : `Use my pin #${pinPhoto.pinNumber}'s photo`}
+            {copyPending ? "Copying…" : "Use my pin's photo"}
           </button>
         </form>
       )}
@@ -91,10 +93,13 @@ export function SeriesItemImageControl({
       {hasImage && (
         <form action={removeSeriesItemImage.bind(null, seriesId, itemId)}>
           <button type="submit" className="text-xs text-neutral-500 hover:text-red-600 hover:underline">
-            Remove
+            Remove photo
           </button>
         </form>
       )}
+      <p className="w-full text-center text-[11px] leading-snug text-neutral-500">
+        Your photo will be seen by anyone looking at this series.
+      </p>
       {(pickError || state.status === "error" || copyState.status === "error") && (
         <p className="w-full text-center text-xs text-red-600">
           {pickError ?? (state.status === "error" ? state.message : copyState.message)}

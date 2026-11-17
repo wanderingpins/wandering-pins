@@ -564,3 +564,12 @@ Bots were submitting the sign-in form with arbitrary addresses, each one sending
 88 vitest tests (`npm test`), mix of pure-logic and live-integration (hits the real Supabase DB and MapTiler API — needs `.env` populated). `npx tsc --noEmit` and `npx eslint .` should both be clean before committing.
 
 The rebrand (`98ddce3`) adds 11 pure-logic tests in `src/lib/pin-card-style.test.ts`. Before it shipped, only that file and `pin-directory.test.ts` were run (16 passing), plus `tsc`, `eslint`, and a full `npm run build` — **the full suite was not run**, because the integration tests touch the real production DB and nothing in that commit changed what they cover.
+
+## Series checklist + home page (2026-11-16, after `18d56b2`) — not yet pushed
+
+- **Series detail page** is now a cork board by default (`?layout=list` for the plain list; `ViewToggle` takes a `param` since `view` already means whose checklist). Collected designs are pinned prints at a per-item tilt (`seriesTileStyle` in `pin-card-style.ts`, ±5°) with an enamel name pill; missing ones are a see-through dashed outline saying "Not collected yet". Buttons are enamel-style ("I have this!", "It's this one!" when arriving via `linkPin`, navy "✕ Remove my claim").
+- **Your own photos on your own checklist, no DB change**: a claimed design linked to a pin you currently hold shows that holding's private photo (`/api/holdings/{id}/photos/{photoId}`, auth-gated, so only you can load it). Everyone else, and the "All pins" view, sees the series picture. "Use my pin's photo" copies yours into the series picture for everyone; a note under the photo controls says so.
+- **Picker labels**: "Title (#N)" instead of "#N Title"; "Remove" → "Remove photo".
+- **Removing a design** (`canRemoveSeriesItem` in `lib/series.ts`, shared by the action and the page): whoever added it can remove it while nobody else has claimed it (their own claim is deleted with it); after that only an admin. Confirm dialog; the item's picture file is deleted too.
+- **Home page**: six enamel-pin links (Browse pins, Series, My pins / Settings, About, How it works), three per side from `lg`, two rows of three on tablets, one column on phones. Footer no longer repeats "Series" (it's in the header).
+- Verified locally signed out only (catalog, a collector's checklist, list view, phone/tablet/desktop home). The signed-in parts (picker, your-photo tiles, copy button, remove rule) need a live check.

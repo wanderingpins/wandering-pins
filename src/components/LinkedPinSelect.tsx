@@ -5,7 +5,7 @@ import { useFormStatus } from "react-dom";
 
 export type PinOption = { id: string; label: string };
 
-// "Your pin: [#13 Darren ▾]" under a series design you've claimed: picks which
+// "Which of your pins is it? [Darren - ChasmFriends (#13) ▾]" under a series design you've claimed: picks which
 // of your own pins it is, which is what makes that pin's page say "Part of a
 // series". Saves as soon as you pick (the action is setClaimLinkedPin).
 export function LinkedPinSelect({

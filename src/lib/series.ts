@@ -11,3 +11,17 @@ export const MAX_SERIES_ITEM_LABEL_LENGTH = 80;
 export function normalizeSeriesKey(raw: string): string {
   return raw.trim().replace(/\s+/g, " ").toLowerCase();
 }
+
+// Who may take a design out of a series: an admin always; whoever added it
+// only while nobody ELSE has claimed it (their own claim doesn't count).
+// Shared by deleteSeriesItem and the series page, so the button only shows
+// when the action will actually do something.
+export function canRemoveSeriesItem(
+  item: { createdBy: string; claims: { userId: string }[] },
+  userId: string | undefined,
+  isAdmin: boolean
+): boolean {
+  if (!userId) return false;
+  if (isAdmin) return true;
+  return item.createdBy === userId && item.claims.every((c) => c.userId === userId);
+}

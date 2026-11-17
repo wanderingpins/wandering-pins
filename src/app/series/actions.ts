@@ -7,7 +7,7 @@ import { isAdminEmail, requireAppUser } from "@/lib/auth";
 import { processHoldingPhoto } from "@/lib/image";
 import { MAX_RAW_UPLOAD_BYTES } from "@/lib/photo-limits";
 import { deleteHoldingPhoto, downloadHoldingPhoto, uploadHoldingPhoto } from "@/lib/storage";
-import { normalizeSeriesKey, MAX_SERIES_NAME_LENGTH, MAX_SERIES_ITEM_LABEL_LENGTH } from "@/lib/series";
+import { canRemoveSeriesItem, normalizeSeriesKey, MAX_SERIES_NAME_LENGTH, MAX_SERIES_ITEM_LABEL_LENGTH } from "@/lib/series";
 
 export type ActionState = { status: "idle" | "ok" | "error"; message?: string };
 
@@ -133,14 +133,25 @@ export async function unclaimItem(seriesId: string, seriesItemId: string) {
   revalidatePath("/my-pins");
 }
 
-// Additive-only editing (see the schema comment on Series): only the row's
-// own creator can remove it, and only while nothing depends on it yet.
+// Whoever added a design can take it back out while it's only theirs — nobody
+// else has claimed it (their own claim goes with it). Once someone else has
+// it on their checklist, only an admin can remove it, so nobody's checklist
+// changes under them. See canRemoveSeriesItem for the same rule in the UI.
 export async function deleteSeriesItem(seriesId: string, seriesItemId: string) {
   const user = await requireAppUser(`/series/${seriesId}`);
-  const item = await prisma.seriesItem.findUnique({ where: { id: seriesItemId }, include: { _count: { select: { claims: true } } } });
-  if (!item || item.createdBy !== user.id || item._count.claims > 0) return;
-  await prisma.seriesItem.delete({ where: { id: seriesItemId } });
+  const item = await prisma.seriesItem.findUnique({
+    where: { id: seriesItemId },
+    include: { claims: { select: { userId: true } } },
+  });
+  if (!item || item.seriesId !== seriesId) return;
+  if (!canRemoveSeriesItem(item, user.id, isAdminEmail(user.email))) return;
+  await prisma.$transaction([
+    prisma.seriesClaim.deleteMany({ where: { seriesItemId } }),
+    prisma.seriesItem.delete({ where: { id: seriesItemId } }),
+  ]);
+  if (item.imagePath) await deleteHoldingPhoto(item.imagePath).catch(() => undefined);
   revalidatePath(`/series/${seriesId}`);
+  revalidatePath("/series");
 }
 
 export async function deleteSeries(seriesId: string) {

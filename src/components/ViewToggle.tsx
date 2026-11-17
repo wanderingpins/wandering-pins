@@ -2,25 +2,28 @@ import Link from "next/link";
 
 export type View = "cork" | "list";
 
-// Cork board or plain list, shared by /pins and /my-pins. Cork is the default,
-// so only "list" ever appears in a URL. Switching keeps the other query params
+// Cork board or plain list, shared by /pins, /my-pins and a series checklist.
+// Cork is the default, so only "list" ever appears in a URL (as ?view=list, or
+// under `param` where "view" already means something else). Switching keeps the other query params
 // the page passes in (search, sort) and drops the page number — the two views
 // paginate the same way, but landing on page 1 is the less surprising reset.
 export function ViewToggle({
   view,
   basePath,
   params = {},
+  param = "view",
 }: {
   view: View;
   basePath: string;
   params?: Record<string, string | undefined>;
+  param?: string;
 }) {
   function hrefFor(target: View) {
     const qs = new URLSearchParams();
     for (const [key, value] of Object.entries(params)) {
       if (value) qs.set(key, value);
     }
-    if (target === "list") qs.set("view", "list");
+    if (target === "list") qs.set(param, "list");
     const query = qs.toString();
     return query ? `${basePath}?${query}` : basePath;
   }

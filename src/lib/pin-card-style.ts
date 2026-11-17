@@ -125,3 +125,15 @@ export function pinCardStyle(slug: string): PinCardStyle {
     stickerTilt: tiltFor(slug, "peel", MAX_STICKER_TILT),
   };
 }
+
+// A design on a series checklist (cork view): a print pinned at its own lean,
+// with an enamel name tag under it. Keyed by the series item's id.
+export type SeriesTileStyle = { tilt: number; pinColor: string; pillColor: string };
+
+export function seriesTileStyle(itemId: string): SeriesTileStyle {
+  return {
+    tilt: tiltFor(itemId, "series-print"),
+    pinColor: PIN_PUSHPIN_COLORS[hash(`${itemId}:series-pin`) % PIN_PUSHPIN_COLORS.length],
+    pillColor: PIN_PILL_COLORS[hash(`${itemId}:series-pill`) % PIN_PILL_COLORS.length],
+  };
+}
