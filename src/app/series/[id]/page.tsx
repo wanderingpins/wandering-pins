@@ -279,8 +279,8 @@ export default async function SeriesDetailPage({ params, searchParams }: Props) 
         {/* The unopened blind box (Series.boxImagePath): a snapshot pinned up
             beside the title, or, with none yet, an offer to add one. */}
         {series.boxImagePath ? (
-          <figure className="flex w-44 shrink-0 flex-col items-center gap-3 self-center sm:self-start">
-            <div className="relative w-40 rotate-3 rounded-sm bg-cream p-2 pb-1 ring-[3px] ring-gold shadow-[0_4px_0_#8E6E14,0_9px_10px_rgba(0,0,0,0.42)]">
+          <figure className="flex w-52 shrink-0 flex-col items-center gap-3 self-center sm:w-64 sm:self-start lg:w-80">
+            <div className="relative w-48 rotate-3 rounded-sm bg-cream p-2 pb-1 sm:w-60 lg:w-72 lg:p-3 lg:pb-1 ring-[3px] ring-gold shadow-[0_4px_0_#8E6E14,0_9px_10px_rgba(0,0,0,0.42)]">
               <PushPin color="#B13F3A" className="-top-2 left-1/2 z-10 -translate-x-1/2" />
               {/* eslint-disable-next-line @next/next/no-img-element -- public series image route */}
               <img
@@ -288,7 +288,7 @@ export default async function SeriesDetailPage({ params, searchParams }: Props) 
                 alt={`The unopened ${series.name} blind box`}
                 className="aspect-square w-full object-cover"
               />
-              <figcaption className="text-center font-hand text-xl leading-8 text-ink">The blind box</figcaption>
+              <figcaption className="text-center font-hand text-xl leading-8 text-ink lg:text-2xl lg:leading-10">The blind box</figcaption>
             </div>
             {viewerId && (
               <SeriesItemImageControl
