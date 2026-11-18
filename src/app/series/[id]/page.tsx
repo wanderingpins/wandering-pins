@@ -214,7 +214,7 @@ export default async function SeriesDetailPage({ params, searchParams }: Props) 
               )}
               <form action={unclaimItem.bind(null, seriesId, item.id)}>
                 <button type="submit" className={FUN_SECONDARY}>
-                  ✕ Remove my claim
+                  ✕ Remove from collection
                 </button>
               </form>
             </div>
