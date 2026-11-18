@@ -660,6 +660,9 @@ Do not extend the public surface any further until all of the following exist:
 
 ## 8. Privacy and abuse
 
+- A holder can hide their own part of a pin's journey (`is_private`: "a collector", "somewhere
+  private", no map point, off `/pins`), or show any place as just its state (`region_only`). Both are
+  applied in `src/lib/public-pin.ts` and nowhere else (added 2026-11-17, by user decision).
 - Store and display **city-level** locations only. Never publish precise coordinates, even if the
   browser offers them. Snap to a city centroid before storing, not at render time.
 - **Never store the device coordinates used to verify a location** (section 6.6) — only the

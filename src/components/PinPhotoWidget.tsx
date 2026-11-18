@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useRef, useState } from "react";
+import { startTransition, useActionState, useRef, useState } from "react";
 import type { Area } from "react-easy-crop";
 import { uploadPhoto, deletePhoto, type ActionState } from "@/app/holdings/[holdingId]/actions";
 import { PhotoCropModal } from "@/app/holdings/[holdingId]/PhotoCropModal";
@@ -96,7 +96,7 @@ export function PinPhotoWidget({
     formData.set("kind", "FRONT");
     formData.set("photo", new File([blob], "photo.jpg", { type: "image/jpeg" }));
     closeCropper();
-    uploadFormAction(formData);
+    startTransition(() => uploadFormAction(formData));
   }
 
   // Sits on the cork board (page.tsx): the photo itself is a tilted print, and

@@ -3,7 +3,7 @@ import { PinRegistrationForm } from "@/components/PinRegistrationForm";
 import { createPinWithoutSticker } from "./actions";
 
 export default async function NewPinPage() {
-  await requireAppUser("/pins/new");
+  const user = await requireAppUser("/pins/new");
 
   return (
     <main className="mx-auto max-w-md px-4 py-16">
@@ -13,7 +13,12 @@ export default async function NewPinPage() {
         claimed by anyone else, or log new places until a sticker is attached to it.
       </p>
       <div className="mt-6">
-        <PinRegistrationForm action={createPinWithoutSticker} submitLabel="Add this pin" pendingLabel="Adding…" />
+        <PinRegistrationForm
+          action={createPinWithoutSticker}
+          submitLabel="Add this pin"
+          pendingLabel="Adding…"
+          defaultRegionOnly={user.placesRegionOnly}
+        />
       </div>
     </main>
   );

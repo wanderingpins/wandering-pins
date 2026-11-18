@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useRef, useState } from "react";
+import { startTransition, useActionState, useRef, useState } from "react";
 import type { Area } from "react-easy-crop";
 import { uploadCheckInPhoto, type ActionState } from "./checkin-actions";
 import { PhotoCropModal } from "./PhotoCropModal";
@@ -62,7 +62,7 @@ export function CheckInPhotoUploadForm({ checkInId, photoCount }: { checkInId: s
     const formData = new FormData();
     formData.set("photo", new File([blob], "photo.jpg", { type: "image/jpeg" }));
     closeCropper();
-    formAction(formData);
+    startTransition(() => formAction(formData));
   }
 
   if (atLimit) {

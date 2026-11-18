@@ -3,8 +3,9 @@
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireAppUser } from "@/lib/auth";
-import { geocodePlace } from "@/lib/geocode";
-import { createHoldingFromForm, parseRegisterForm, type RegisterState } from "@/lib/register-form";
+import { geocodePlace, regionFieldsFor } from "@/lib/geocode";
+import { createHoldingFromForm, parseRegisterForm, REGION_LOOKUP_FAILED, type RegisterState } from "@/lib/register-form";
+import { prepareRegisterPhoto, saveRegisterPhoto } from "@/lib/register-photo";
 import { Prisma } from "@/generated/prisma/client";
 
 // Handles every way a scanned sticker can become part of someone's account.
@@ -67,6 +68,11 @@ export async function registerPin(
   if (!geocoded) {
     return { status: "error", message: "Couldn't find that place — try a city name." };
   }
+  const region = await regionFieldsFor(geocoded, parsed.data.regionOnly);
+  if (!region.ok) return { status: "error", message: REGION_LOOKUP_FAILED };
+  const place = { ...geocoded, ...region.fields };
+  const photo = await prepareRegisterPhoto(formData);
+  if (!photo.ok) return { status: "error", message: photo.message };
 
   const isPending = !!confirmedHolding;
   let result: { holdingId: string; pinNumber: number };
@@ -88,7 +94,7 @@ export async function registerPin(
         pinId: target.id,
         userId: user.id,
         data: parsed.data,
-        place: geocoded,
+        place,
         pending: isPending,
       });
       return { holdingId, pinNumber: target.number };
@@ -111,6 +117,8 @@ export async function registerPin(
   // A pending claim doesn't show up on the public page yet, so send the
   // claimant to their own holding instead of somewhere that'd look like
   // nothing happened.
+  await saveRegisterPhoto(result.holdingId, photo.buffer);
+
   redirect(isPending ? `/holdings/${result.holdingId}` : `/p/${result.pinNumber}`);
 }
 

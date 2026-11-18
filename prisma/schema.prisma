@@ -101,6 +101,9 @@ model User {
   city             String?
   createdAt        DateTime @default(now()) @map("created_at")
   showNamePublicly Boolean  @default(true) @map("show_name_publicly")
+  // Settings: "Always show my places as the state". Pre-ticks "Only show the
+  // state" on every new place, and switching it on converts existing ones.
+  placesRegionOnly Boolean  @default(false) @map("places_region_only")
 
   holdings      PinHolding[]
   seriesCreated Series[]
@@ -151,6 +154,23 @@ model PinHolding {
   releasedAt  DateTime?   @map("released_at")
   pending     Boolean     @default(false)
   verified    Boolean     @default(false)
+  // Privacy (added 2026-11-17, by user decision). Each holder chooses for
+  // their own stretch of the journey, and the next holder chooses again for
+  // theirs. Every public read goes through publicPlace/publicHolderName in
+  // src/lib/public-pin.ts, never placeLabel/lat/lng directly:
+  // - isPrivate: strangers see this stretch (and its check-ins) as
+  //   "a collector" in "somewhere private", with no map point; while it is the
+  //   open holding, the pin's title/description/front photo are hidden too and
+  //   the pin drops off /pins.
+  // - regionOnly: strangers see regionLabel/regionLat/regionLng (the state,
+  //   from reverse geocoding) instead of the town. placeLabel/lat/lng keep the
+  //   town so location verification still works; only the owner sees it.
+  //   regionOnly is only ever set true together with all three region fields.
+  isPrivate   Boolean     @default(false) @map("is_private")
+  regionOnly  Boolean     @default(false) @map("region_only")
+  regionLabel String?     @map("region_label")
+  regionLat   Float?      @map("region_lat")
+  regionLng   Float?      @map("region_lng")
 
   pin  Pin  @relation(fields: [pinId], references: [id])
   user User @relation(fields: [userId], references: [id])
@@ -177,6 +197,11 @@ model HoldingNote {
   releaseDate       DateTime? @map("release_date")
   releasePlaceLabel String?   @map("release_place_label")
   updatedAt         DateTime  @updatedAt @map("updated_at")
+  // "Tell the story" (body) shared on the pin's page (added 2026-11-17, by user
+  // decision — a fourth narrow exception to brief section 7, like the
+  // description): shown only while this is the open holding and the stretch
+  // isn't private; admins can unshare it from /admin. Off by default.
+  isPublic          Boolean   @default(false) @map("is_public")
 
   holding PinHolding @relation(fields: [holdingId], references: [id])
 
@@ -235,6 +260,12 @@ model HoldingCheckIn {
   lng        Float
   verified   Boolean  @default(false)
   createdAt  DateTime @default(now()) @map("created_at")
+  // Same "only show the state" choice as PinHolding.regionOnly. Privacy is
+  // the parent holding's isPrivate.
+  regionOnly  Boolean @default(false) @map("region_only")
+  regionLabel String? @map("region_label")
+  regionLat   Float?  @map("region_lat")
+  regionLng   Float?  @map("region_lng")
 
   holding PinHolding @relation(fields: [holdingId], references: [id])
 
@@ -337,6 +368,13 @@ model Series {
   nameKey   String   @unique @map("name_key")
   createdBy String   @map("created_by")
   createdAt DateTime @default(now()) @map("created_at")
+  // A picture of the unopened blind box (added 2026-11-17). Same rules as
+  // SeriesItem.imagePath: anyone signed in can add the first one; only the
+  // person who added it (boxImageBy) or an admin can replace or remove it.
+  // Served publicly via /api/series/{id}/box-image.
+  boxImagePath    String?   @map("box_image_path")
+  boxImageBy      String?   @map("box_image_by")
+  boxImageAddedAt DateTime? @map("box_image_added_at")
 
   creator User         @relation(fields: [createdBy], references: [id])
   items   SeriesItem[]

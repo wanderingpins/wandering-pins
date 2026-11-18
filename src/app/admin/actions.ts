@@ -27,10 +27,12 @@ export async function adminDeletePinPhoto(photoId: string) {
   done();
 }
 
-// Blank a pin's public name and description (shows as "Untitled Pin").
+// Blank a pin's public name and description (shows as "Untitled Pin"), and
+// unshare its story — the story itself stays, private to its writer.
 export async function adminClearPinText(holdingId: string) {
   await requireAdmin();
   await prisma.pinTitle.updateMany({ where: { holdingId }, data: { title: "", description: null } });
+  await prisma.holdingNote.updateMany({ where: { holdingId }, data: { isPublic: false } });
   done();
 }
 
@@ -42,6 +44,16 @@ export async function adminRemoveSeriesImage(seriesItemId: string) {
   await deleteHoldingPhoto(item.imagePath).catch(() => undefined);
   done();
   revalidatePath(`/series/${item.seriesId}`);
+}
+
+export async function adminRemoveSeriesBoxImage(seriesId: string) {
+  await requireAdmin();
+  const series = await prisma.series.findUnique({ where: { id: seriesId } });
+  if (!series?.boxImagePath) return;
+  await prisma.series.update({ where: { id: seriesId }, data: { boxImagePath: null, boxImageBy: null, boxImageAddedAt: null } });
+  await deleteHoldingPhoto(series.boxImagePath).catch(() => undefined);
+  done();
+  revalidatePath(`/series/${seriesId}`);
 }
 
 // Unlike the creator's own delete, an admin can remove an item that people
@@ -77,6 +89,7 @@ export async function adminRenameSeries(seriesId: string, formData: FormData) {
 export async function adminDeleteSeries(seriesId: string) {
   await requireAdmin();
   const items = await prisma.seriesItem.findMany({ where: { seriesId }, select: { id: true, imagePath: true } });
+  const box = await prisma.series.findUnique({ where: { id: seriesId }, select: { boxImagePath: true } });
   const itemIds = items.map((i) => i.id);
   await prisma.$transaction([
     prisma.seriesClaim.deleteMany({ where: { seriesItemId: { in: itemIds } } }),
@@ -84,5 +97,6 @@ export async function adminDeleteSeries(seriesId: string) {
     prisma.series.delete({ where: { id: seriesId } }),
   ]);
   for (const i of items) if (i.imagePath) await deleteHoldingPhoto(i.imagePath).catch(() => undefined);
+  if (box?.boxImagePath) await deleteHoldingPhoto(box.boxImagePath).catch(() => undefined);
   done();
 }

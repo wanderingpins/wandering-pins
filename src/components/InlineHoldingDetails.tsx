@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useRef, useState } from "react";
+import { startTransition, useActionState, useRef, useState } from "react";
 import { useEditMode } from "@/components/PinEditMode";
 import { JournalPhoto } from "@/components/JournalPhoto";
 import { journalPhotoTilt } from "@/lib/pin-card-style";
@@ -27,11 +27,15 @@ export function InlineHoldingDetails({
   holdingId,
   initialNotes,
   photos,
+  storyShared = false,
 }: {
   holdingId: string;
   initialNotes: string;
   photos: Photo[];
+  /** The story is shared on the pin's page (HoldingNote.isPublic, current holding). */
+  storyShared?: boolean;
 }) {
+  const visibility = storyShared ? "🌐 Your story is shared on this page · photos stay private" : "🔒 Only you can see this";
   const [expanded, setExpanded] = useState(false);
   const hasDetails = !!initialNotes || photos.length > 0;
   // Nothing is editable until the owner turns on edit mode (the "Edit pin
@@ -108,7 +112,7 @@ export function InlineHoldingDetails({
     formData.set("kind", "OTHER");
     formData.set("photo", new File([blob], "photo.jpg", { type: "image/jpeg" }));
     closeCropper();
-    uploadFormAction(formData);
+    startTransition(() => uploadFormAction(formData));
   }
 
   return (
@@ -116,7 +120,7 @@ export function InlineHoldingDetails({
       {!open && hasDetails && (
         <div className="flex flex-col gap-3">
           <p className="inline-flex w-fit items-center gap-1.5 rounded-full bg-ink/10 px-2.5 py-0.5 text-xs font-medium text-ink/70">
-            🔒 Only you can see this
+            {visibility}
           </p>
           {initialNotes && <p className="whitespace-pre-wrap font-hand text-[22px] leading-7 text-ink">{initialNotes}</p>}
           {photos.length > 0 && (
@@ -140,7 +144,7 @@ export function InlineHoldingDetails({
       ) : (
         <div className="flex flex-col gap-3">
           <p className="inline-flex w-fit items-center gap-1.5 rounded-full bg-ink/10 px-2.5 py-0.5 text-xs font-medium text-ink/70">
-            🔒 Only you can see this
+            {visibility}
           </p>
 
           <form action={noteFormAction} className="flex flex-col gap-2">

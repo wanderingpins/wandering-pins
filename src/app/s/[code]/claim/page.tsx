@@ -86,7 +86,7 @@ export default async function ClaimPage({ params }: Props) {
             {stickerlessHoldings.length > 0 ? "Or register a new pin with it" : "Register a new pin with it"}
           </h2>
           <div className="mt-3">
-            <PinRegistrationForm action={register} />
+            <PinRegistrationForm action={register} defaultRegionOnly={user.placesRegionOnly} />
           </div>
         </section>
       </main>
@@ -105,7 +105,7 @@ export default async function ClaimPage({ params }: Props) {
         <p className="text-sm text-neutral-500">Pin #{pin.number}</p>
         <h1 className="mt-1 text-xl font-semibold">Register this pin</h1>
         <div className="mt-6">
-          <PinRegistrationForm action={register} />
+          <PinRegistrationForm action={register} defaultRegionOnly={user.placesRegionOnly} />
         </div>
       </main>
     );
@@ -145,7 +145,7 @@ export default async function ClaimPage({ params }: Props) {
         the current holder releases it — only then does it join the public journey.
       </p>
       <div className="mt-6">
-        <PinRegistrationForm action={register} />
+        <PinRegistrationForm action={register} defaultRegionOnly={user.placesRegionOnly} />
       </div>
     </main>
   );

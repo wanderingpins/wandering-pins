@@ -10,8 +10,17 @@ import {
   formatMonthYear,
   resolveHolderDisplayName,
 } from "@/lib/timeline";
-import { toPublicHolding, toPublicCheckIn } from "@/lib/public-pin";
+import {
+  PRIVATE_PLACE_LABEL,
+  publicHolderName,
+  publicPlace,
+  type PlaceFields,
+  type PublicPlace,
+} from "@/lib/public-pin";
+import { PrivacySwitch } from "@/components/PrivacySwitch";
+import { setHoldingPrivate, setStoryPublic } from "@/app/holdings/[holdingId]/privacy-actions";
 import { pinCardStyle } from "@/lib/pin-card-style";
+import { shortPlace } from "@/lib/place";
 import { PinJourneyTimeline, type TimelineLine } from "@/components/PinJourneyTimeline";
 import { PinJourneyMap } from "@/components/PinJourneyMap";
 import { MapFrame } from "@/components/MapFrame";
@@ -74,17 +83,6 @@ export async function PinView({ pinNumber, scanCode }: { pinNumber: number; scan
   // timeline, the map, or the public title/photo.
   const confirmedHoldings = pin.holdings.filter((h) => !h.pending);
 
-  const publicHoldings = confirmedHoldings.map(toPublicHolding);
-  const publicCheckIns = confirmedHoldings.flatMap((h) =>
-    h.checkIns.map((c) => toPublicCheckIn({ ...c, holder: h.user }))
-  );
-  const points = [
-    ...publicHoldings.map((h) => ({ at: h.acquiredAt, lat: h.lat, lng: h.lng, label: h.placeLabel })),
-    ...publicCheckIns.map((c) => ({ at: c.loggedAt, lat: c.lat, lng: c.lng, label: c.placeLabel })),
-  ]
-    .sort((a, b) => a.at.getTime() - b.at.getTime())
-    .map(({ lat, lng, label }) => ({ lat, lng, label }));
-
   // At most one CONFIRMED open holding per pin (partial unique index —
   // release is atomic and one-sided, brief section 6.4, so there's never an
   // overlap, only a gap between someone releasing and someone else
@@ -98,6 +96,29 @@ export async function PinView({ pinNumber, scanCode }: { pinNumber: number; scan
   // details" widgets render, for this one request.
   const claims = await getAuthClaims(BEST_EFFORT_AUTH_TIMEOUT_MS);
   const isCurrentHolder = !!claims && claims.sub === openHolding?.userId;
+
+  // Privacy (PinHolding.isPrivate / regionOnly): every place and name below
+  // goes through these two. You see your own stretches as they really are
+  // (with a note saying what strangers see instead); everyone else's go
+  // through the public seam in src/lib/public-pin.ts.
+  type Stretch = (typeof confirmedHoldings)[number];
+  const isOwnStretch = (h: Stretch) => !!claims && claims.sub === h.userId;
+  const shownPlace = (row: PlaceFields, h: Stretch): PublicPlace | null =>
+    isOwnStretch(h) ? { label: row.placeLabel, lat: row.lat, lng: row.lng } : publicPlace(row, h.isPrivate);
+  const shownHolder = (h: Stretch) =>
+    isOwnStretch(h) ? resolveHolderDisplayName(h.user) : publicHolderName(h.user, h.isPrivate);
+
+  const points = [
+    ...confirmedHoldings.map((h) => ({ at: h.acquiredAt, place: shownPlace(h, h) })),
+    ...confirmedHoldings.flatMap((h) => h.checkIns.map((c) => ({ at: c.loggedAt, place: shownPlace(c, h) }))),
+  ]
+    .filter((p): p is { at: Date; place: PublicPlace } => p.place !== null)
+    .sort((a, b) => a.at.getTime() - b.at.getTime())
+    .map(({ place }) => place);
+
+  // While the current holder keeps the pin private, strangers don't get its
+  // name, description, photo or series link either.
+  const hiddenFromViewer = !!openHolding?.isPrivate && !isCurrentHolder;
   // Gets the "Edit pin information" sticker: the current holder, and anyone who
   // owns an earlier line of this journey (they can still edit their own notes).
   const canEdit = !!claims && confirmedHoldings.some((h) => h.userId === claims.sub);
@@ -109,10 +130,12 @@ export async function PinView({ pinNumber, scanCode }: { pinNumber: number; scan
   // public. They're public ONLY for the current open holding, and only the
   // front photo; back/other photos and everything in HoldingNote stay
   // private always.
-  const publicTitle = openHolding?.title?.title.trim() || "Untitled Pin";
-  const publicDescription = openHolding?.title?.description?.trim() || "";
+  const publicTitle = hiddenFromViewer ? "A private pin" : openHolding?.title?.title.trim() || "Untitled Pin";
+  const publicDescription = hiddenFromViewer ? "" : openHolding?.title?.description?.trim() || "";
   const frontPhotoId = openHolding?.photos.find((p) => p.kind === "FRONT")?.id;
-  const hasPublicPhoto = !!frontPhotoId;
+  const hasPublicPhoto = !!frontPhotoId && !hiddenFromViewer;
+  const sharedStory =
+    !hiddenFromViewer && openHolding?.note?.isPublic ? openHolding.note.body.trim() : "";
   // Same per-pin push pin colors as this pin's card on /pins.
   const { photoPinColor, paperPinColor, stickerColor, stickerTilt } = pinCardStyle(String(pin.number));
 
@@ -124,7 +147,7 @@ export async function PinView({ pinNumber, scanCode }: { pinNumber: number; scan
   // title/description/photo above), even though the underlying claim
   // itself persists on their own /series page regardless of who holds this
   // pin next.
-  const seriesLink = openHolding
+  const seriesLink = openHolding && !hiddenFromViewer
     ? await prisma.seriesClaim.findFirst({
         where: { linkedPinId: pin.id, userId: openHolding.userId },
         // Only the fields shown, so this page never depends on newer
@@ -152,15 +175,15 @@ export async function PinView({ pinNumber, scanCode }: { pinNumber: number; scan
       id: h.id,
       acquiredAt: h.acquiredAt,
       acquiredVia: h.acquiredVia,
-      placeLabel: h.placeLabel,
-      holderDisplayName: resolveHolderDisplayName(h.user),
+      placeLabel: shownPlace(h, h)?.label ?? PRIVATE_PLACE_LABEL,
+      holderDisplayName: shownHolder(h),
     })),
     confirmedHoldings.flatMap((h) =>
       h.checkIns.map((c) => ({
         id: c.id,
         loggedAt: c.loggedAt,
-        placeLabel: c.placeLabel,
-        holderDisplayName: resolveHolderDisplayName(h.user),
+        placeLabel: shownPlace(c, h)?.label ?? PRIVATE_PLACE_LABEL,
+        holderDisplayName: shownHolder(h),
       }))
     )
   );
@@ -172,15 +195,20 @@ export async function PinView({ pinNumber, scanCode }: { pinNumber: number; scan
         key: `holding-${row.id}`,
         date: formatMonthYear(h.acquiredAt),
         kicker: acquisitionKicker(h.acquiredVia),
-        place: h.placeLabel,
-        holder: resolveHolderDisplayName(h.user),
+        place: shownPlace(h, h)?.label ?? PRIVATE_PLACE_LABEL,
+        holder: shownHolder(h),
         star: h.verified ? <VerifiedStar /> : undefined,
-        badge:
-          !h.verified && isOwn ? <VerifyLocationButton onVerify={verifyHoldingLocation.bind(null, h.id)} /> : undefined,
+        badge: isOwn ? (
+          <>
+            {!h.verified && <VerifyLocationButton onVerify={verifyHoldingLocation.bind(null, h.id)} />}
+            <OthersSee isPrivate={h.isPrivate} row={h} />
+          </>
+        ) : undefined,
         action: isOwn ? (
           <InlineHoldingDetails
             holdingId={h.id}
             initialNotes={h.note?.body ?? ""}
+            storyShared={!!h.note?.isPublic && h.releasedAt === null && !h.isPrivate}
             // The FRONT-kind photo (if any) is managed entirely by
             // PinPhotoWidget at the top of the page now — never shown or
             // manageable here, so it can't look like it belongs to this
@@ -196,11 +224,15 @@ export async function PinView({ pinNumber, scanCode }: { pinNumber: number; scan
       key: `checkin-${row.id}`,
       date: formatMonthYear(checkIn.loggedAt),
       kicker: CHECK_IN_KICKER,
-      place: checkIn.placeLabel,
-      holder: resolveHolderDisplayName(holding.user),
+      place: shownPlace(checkIn, holding)?.label ?? PRIVATE_PLACE_LABEL,
+      holder: shownHolder(holding),
       star: checkIn.verified ? <VerifiedStar /> : undefined,
-      badge:
-        !checkIn.verified && isOwn ? <VerifyLocationButton onVerify={verifyCheckInLocation.bind(null, checkIn.id)} /> : undefined,
+      badge: isOwn ? (
+        <>
+          {!checkIn.verified && <VerifyLocationButton onVerify={verifyCheckInLocation.bind(null, checkIn.id)} />}
+          <OthersSee isPrivate={holding.isPrivate} row={checkIn} />
+        </>
+      ) : undefined,
       action: isOwn ? (
         <InlineCheckInDetails
           checkInId={checkIn.id}
@@ -304,6 +336,51 @@ export async function PinView({ pinNumber, scanCode }: { pinNumber: number; scan
             )
           )}
 
+          {/* The holder's story, when they chose to share it (HoldingNote.isPublic):
+              same "current holding only" rule as the description. */}
+          {sharedStory && (
+            <section className="mt-6 rounded-[3px] bg-paper px-5 py-4 text-ink shadow-[0_6px_10px_rgba(0,0,0,0.4)]">
+              <h2 className="font-display text-sm font-bold uppercase tracking-[0.12em] text-ink/70">The story</h2>
+              <p className="mt-2 whitespace-pre-wrap font-hand text-[22px] leading-7">{sharedStory}</p>
+            </section>
+          )}
+
+          {isCurrentHolder && (
+            <div className="mt-6 flex flex-col gap-3 rounded-lg border border-gold/60 px-4 py-3">
+              {!!openHolding!.note?.body.trim() && (
+                <PrivacySwitch
+                  tone="dark"
+                  on={openHolding!.note!.isPublic}
+                  label="Share my story on this page"
+                  hint={
+                    openHolding!.note!.isPublic
+                      ? "Anyone looking at this pin can read the story you wrote about getting it."
+                      : "Only you can see your story right now."
+                  }
+                  action={setStoryPublic.bind(null, openHolding!.id)}
+                />
+              )}
+              <PrivacySwitch
+                tone="dark"
+                on={openHolding!.isPrivate}
+                label="Keep my part of this pin's journey private"
+                hint={
+                  openHolding!.isPrivate
+                    ? "Others see “a collector” and “somewhere private” for your stretch, and not this pin's name, photo or description. It's also left off Browse pins."
+                    : "Right now anyone can see your username and the places you log for this pin."
+                }
+                action={setHoldingPrivate.bind(null, openHolding!.id)}
+              />
+              <p className="pl-14 text-xs text-cream/70">
+                To show just the state instead of the town for a place, use{" "}
+                <Link href={`/holdings/${openHolding!.id}#privacy`} className="text-accent hover:underline">
+                  your privacy choices
+                </Link>
+                .
+              </p>
+            </div>
+          )}
+
           <h2 className="mt-6 text-center font-block text-4xl text-cream [text-shadow:3px_3px_0_#D06A2E] sm:text-5xl">
             Where I&apos;ve Wandered
           </h2>
@@ -387,5 +464,17 @@ function PassportNotice({ isHolder }: { isHolder: boolean }) {
         </p>
       )}
     </div>
+  );
+}
+
+// Beside your own journal entries: what strangers see instead, when that's
+// not the plain town and your username.
+function OthersSee({ isPrivate, row }: { isPrivate: boolean; row: PlaceFields }) {
+  if (!isPrivate && !row.regionOnly) return null;
+  const shown = isPrivate ? `a collector, ${PRIVATE_PLACE_LABEL.toLowerCase()}` : shortPlace(row.regionLabel ?? "");
+  return (
+    <span className="font-hand text-lg text-ink/60">
+      {isPrivate ? "🔒" : "🌐"} others see: {shown}
+    </span>
   );
 }

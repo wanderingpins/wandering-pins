@@ -5,7 +5,8 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireAppUser } from "@/lib/auth";
 import { getOwnedHolding } from "@/lib/holdings";
-import { geocodePlace } from "@/lib/geocode";
+import { geocodePlace, regionFieldsFor } from "@/lib/geocode";
+import { REGION_LOOKUP_FAILED } from "@/lib/register-form";
 import { processHoldingPhoto } from "@/lib/image";
 import { uploadHoldingPhoto, deleteHoldingPhoto } from "@/lib/storage";
 import { MAX_RAW_UPLOAD_BYTES, MAX_CHECKIN_PHOTOS } from "@/lib/photo-limits";
@@ -52,6 +53,8 @@ export async function addCheckIn(holdingId: string, _prevState: ActionState, for
   if (!geocoded) {
     return { status: "error", message: "Couldn't find that place — try a city name." };
   }
+  const region = await regionFieldsFor(geocoded, formData.get("regionOnly") === "on");
+  if (!region.ok) return { status: "error", message: REGION_LOOKUP_FAILED };
 
   await prisma.holdingCheckIn.create({
     data: {
@@ -60,6 +63,7 @@ export async function addCheckIn(holdingId: string, _prevState: ActionState, for
       placeLabel: geocoded.placeLabel,
       lat: geocoded.lat,
       lng: geocoded.lng,
+      ...region.fields,
     },
   });
 

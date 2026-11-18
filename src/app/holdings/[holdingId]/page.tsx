@@ -10,6 +10,9 @@ import { AddCheckInForm } from "./AddCheckInForm";
 import { CheckInNoteForm } from "./CheckInNoteForm";
 import { CheckInPhotoUploadForm } from "./CheckInPhotoUploadForm";
 import { deleteCheckIn, deleteCheckInPhoto } from "./checkin-actions";
+import { setCheckInRegionOnly, setHoldingPrivate, setHoldingRegionOnly, setStoryPublic } from "./privacy-actions";
+import { PrivacySwitch } from "@/components/PrivacySwitch";
+import { shortPlace } from "@/lib/place";
 
 type Props = { params: Promise<{ holdingId: string }> };
 
@@ -67,6 +70,33 @@ export default async function HoldingPage({ params }: Props) {
         </p>
       )}
 
+      <section id="privacy" className="mt-6 scroll-mt-6 flex flex-col gap-4 rounded-lg border border-neutral-200 p-4">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-500">Who sees your part of the journey</h2>
+        <PrivacySwitch
+          on={holding.isPrivate}
+          label="Keep my part of this pin's journey private"
+          hint={
+            holding.isPrivate
+              ? "Others see “a collector” and “somewhere private” for your stretch" +
+                (isCurrent ? ", and not this pin's name, photo or description. It's left off Browse pins." : ".")
+              : "Others can see your username and every place below."
+          }
+          action={setHoldingPrivate.bind(null, holdingId)}
+        />
+        <PrivacySwitch
+          on={holding.regionOnly}
+          label={`Only show the state for ${shortPlace(holding.placeLabel)}`}
+          hint={
+            holding.isPrivate
+              ? "Your stretch is private, so no place shows at all right now."
+              : holding.regionOnly && holding.regionLabel
+                ? `Others see ${shortPlace(holding.regionLabel)}.`
+                : "Where you got it. Others see the town."
+          }
+          action={setHoldingRegionOnly.bind(null, holdingId)}
+        />
+      </section>
+
       <section className="mt-6">
         <DetailsForm
           holdingId={holdingId}
@@ -76,6 +106,22 @@ export default async function HoldingPage({ params }: Props) {
           initialReleasePlaceLabel={note?.releasePlaceLabel ?? ""}
           isReleased={holding.releasedAt !== null}
         />
+        {!!note?.body.trim() && (
+          <div className="mt-4">
+            <PrivacySwitch
+              on={note.isPublic}
+              label="Share my story on the pin's page"
+              hint={
+                note.isPublic
+                  ? isCurrent && !holding.isPrivate
+                    ? "Anyone looking at this pin can read it."
+                    : "It shows on the pin's page only while you have the pin and your part isn't private."
+                  : "Only you can see it."
+              }
+              action={setStoryPublic.bind(null, holdingId)}
+            />
+          </div>
+        )}
       </section>
 
       <section className="mt-10">
@@ -120,8 +166,8 @@ export default async function HoldingPage({ params }: Props) {
       <section id="locations" className="mt-10 scroll-mt-6">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-500">Locations</h2>
         <p className="mt-2 text-xs text-neutral-500">
-          🌐 The place and date of each entry are public, same as where you got it. Photos and descriptions here
-          always stay private.
+          🌐 The place and date of each entry are public, same as where you got it, unless you keep your part
+          private or show only the state. Photos and descriptions here always stay private.
         </p>
 
         {checkIns.length > 0 && (
@@ -130,13 +176,28 @@ export default async function HoldingPage({ params }: Props) {
               <li key={checkIn.id} className="rounded-lg border border-neutral-200 p-4">
                 <div className="flex items-start justify-between gap-2">
                   <p className="text-sm font-medium">
-                    🌐 {checkIn.placeLabel} · {formatMonthYear(checkIn.loggedAt)}
+                    {holding.isPrivate ? "🔒" : "🌐"} {checkIn.placeLabel} · {formatMonthYear(checkIn.loggedAt)}
                   </p>
                   <form action={deleteCheckIn.bind(null, checkIn.id)}>
                     <button type="submit" className="text-xs text-neutral-400 hover:text-red-600">
                       Remove
                     </button>
                   </form>
+                </div>
+
+                <div className="mt-3">
+                  <PrivacySwitch
+                    on={checkIn.regionOnly}
+                    label="Only show the state"
+                    hint={
+                      holding.isPrivate
+                        ? "Your stretch is private, so no place shows at all right now."
+                        : checkIn.regionOnly && checkIn.regionLabel
+                          ? `Others see ${shortPlace(checkIn.regionLabel)}.`
+                          : "Others see the town."
+                    }
+                    action={setCheckInRegionOnly.bind(null, checkIn.id)}
+                  />
                 </div>
 
                 <div className="mt-3">
@@ -178,7 +239,7 @@ export default async function HoldingPage({ params }: Props) {
 
         {canAddCheckIn ? (
           <div className="mt-4">
-            <AddCheckInForm holdingId={holdingId} />
+            <AddCheckInForm holdingId={holdingId} defaultRegionOnly={user.placesRegionOnly} />
           </div>
         ) : (
           checkIns.length === 0 && (

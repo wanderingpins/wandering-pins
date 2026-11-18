@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useRef, useState } from "react";
+import { startTransition, useActionState, useRef, useState } from "react";
 import { useEditMode } from "@/components/PinEditMode";
 import { JournalPhoto } from "@/components/JournalPhoto";
 import { journalPhotoTilt } from "@/lib/pin-card-style";
@@ -107,7 +107,7 @@ export function InlineCheckInDetails({
     const formData = new FormData();
     formData.set("photo", new File([blob], "photo.jpg", { type: "image/jpeg" }));
     closeCropper();
-    uploadFormAction(formData);
+    startTransition(() => uploadFormAction(formData));
   }
 
   return (

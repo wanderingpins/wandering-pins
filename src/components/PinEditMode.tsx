@@ -55,3 +55,26 @@ export function EditPinSticker({ color, tilt, className = "" }: { color: string;
     </button>
   );
 }
+
+// Children shown only while NOT editing (e.g. a hint pointing at the edit button).
+export function ViewOnly({ children }: { children: ReactNode }) {
+  return useEditMode() ? null : <>{children}</>;
+}
+
+// A plain pill version of the toggle, for pages without the sticker (the
+// series page's "Edit series").
+export function EditModeButton({ label, className = "" }: { label: string; className?: string }) {
+  const { editing, setEditing } = useContext(EditModeContext);
+  return (
+    <button
+      type="button"
+      aria-pressed={editing}
+      onClick={() => setEditing(!editing)}
+      className={`rounded-full border-2 border-gold px-4 py-1.5 text-sm font-semibold transition-colors ${
+        editing ? "bg-gold text-navy" : "text-cream hover:bg-gold/20"
+      } ${className}`}
+    >
+      {editing ? "✓ Done editing" : `✏️ ${label}`}
+    </button>
+  );
+}

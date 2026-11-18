@@ -2,8 +2,9 @@
 
 import { useActionState } from "react";
 import { addCheckIn, type ActionState } from "./checkin-actions";
+import { PlacePrivacyChoices } from "@/components/PlacePrivacyChoices";
 
-export function AddCheckInForm({ holdingId }: { holdingId: string }) {
+export function AddCheckInForm({ holdingId, defaultRegionOnly }: { holdingId: string; defaultRegionOnly: boolean }) {
   const action = addCheckIn.bind(null, holdingId);
   const [state, formAction, pending] = useActionState<ActionState, FormData>(action, { status: "idle" });
 
@@ -23,6 +24,7 @@ export function AddCheckInForm({ holdingId }: { holdingId: string }) {
           className="rounded-md border border-neutral-300 px-3 py-2"
         />
       </label>
+      <PlacePrivacyChoices defaultRegionOnly={defaultRegionOnly} />
       <label className="flex flex-col gap-1 text-sm">
         When?
         <input type="date" name="loggedAt" required className="rounded-md border border-neutral-300 px-3 py-2" />

@@ -37,3 +37,45 @@ export async function geocodePlace(query: string): Promise<GeocodedPlace | null>
     lng: roundCoarse(lng),
   };
 }
+
+// The state/region a point sits in, for "Only show the state" (see
+// PinHolding.regionOnly): reverse-geocodes the stored town centroid and keeps
+// the region feature ("California, United States", "England, United Kingdom"),
+// or the country where there's no region level (Luxembourg). Its own centroid
+// is what goes on the public map, so the town's position never does.
+export async function regionForPoint(lat: number, lng: number): Promise<GeocodedPlace | null> {
+  const key = process.env.NEXT_PUBLIC_MAPTILER_API_KEY;
+  const url = `https://api.maptiler.com/geocoding/${lng},${lat}.json?key=${key}`;
+
+  const res = await fetch(url);
+  if (!res.ok) return null;
+
+  const body = await res.json();
+  const features: { id?: string; place_name?: string; center?: [number, number] }[] = body.features ?? [];
+  const feature =
+    features.find((f) => f.id?.startsWith("region.")) ?? features.find((f) => f.id?.startsWith("country."));
+  if (!feature?.place_name || !feature.center) return null;
+
+  const [rLng, rLat] = feature.center;
+  return { placeLabel: feature.place_name, lat: roundCoarse(rLat), lng: roundCoarse(rLng) };
+}
+
+// The region columns to store alongside a place (PinHolding / HoldingCheckIn).
+// Only looks the region up when it's wanted; if the lookup fails, the place
+// is saved as the town with regionOnly false, so `ok: false` tells the caller
+// to warn rather than silently publishing the town.
+export async function regionFieldsFor(
+  place: { lat: number; lng: number },
+  regionOnly: boolean
+): Promise<
+  | { ok: true; fields: { regionOnly: boolean; regionLabel: string | null; regionLat: number | null; regionLng: number | null } }
+  | { ok: false }
+> {
+  if (!regionOnly) return { ok: true, fields: { regionOnly: false, regionLabel: null, regionLat: null, regionLng: null } };
+  const region = await regionForPoint(place.lat, place.lng);
+  if (!region) return { ok: false };
+  return {
+    ok: true,
+    fields: { regionOnly: true, regionLabel: region.placeLabel, regionLat: region.lat, regionLng: region.lng },
+  };
+}

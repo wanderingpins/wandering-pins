@@ -7,6 +7,7 @@ import {
   adminDeleteSeries,
   adminDeleteSeriesItem,
   adminRemoveSeriesImage,
+  adminRemoveSeriesBoxImage,
   adminRenameSeries,
 } from "@/app/admin/actions";
 
@@ -18,7 +19,8 @@ const DANGER = "rounded-md border border-red-600/60 px-2 py-1 text-xs font-mediu
 // Every pin's current public face: photo, name, description, newest first.
 export async function PhotosTab() {
   const holdings = await prisma.pinHolding.findMany({
-    where: { releasedAt: null, pending: false },
+    // A private pin shows none of this publicly, so there's nothing to review.
+    where: { releasedAt: null, pending: false, isPrivate: false },
     orderBy: { acquiredAt: "desc" },
     take: 200,
     select: {
@@ -26,6 +28,7 @@ export async function PhotosTab() {
       pin: { select: { number: true } },
       user: { select: { username: true, email: true } },
       title: { select: { title: true, description: true } },
+      note: { select: { body: true, isPublic: true } },
       photos: { where: { kind: "FRONT" }, select: { id: true }, take: 1 },
     },
   });
@@ -33,7 +36,8 @@ export async function PhotosTab() {
   return (
     <section className="mt-6">
       <p className="text-sm text-neutral-600">
-        What each pin shows the public right now (the current holder&apos;s photo, name and description). Newest first,
+        What each pin shows the public right now (the current holder&apos;s photo, name, description and shared story).
+        Newest first,
         up to 200.
       </p>
       <ul className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -41,6 +45,7 @@ export async function PhotosTab() {
           const photo = h.photos[0];
           const title = h.title?.title.trim();
           const description = h.title?.description?.trim();
+          const story = h.note?.isPublic ? h.note.body.trim() : "";
           return (
             <li key={h.id} className="flex gap-3 rounded-lg border border-neutral-200 p-3">
               {photo ? (
@@ -56,6 +61,7 @@ export async function PhotosTab() {
                   #{h.pin.number} {title || "Untitled Pin"}
                 </Link>
                 {description && <p className="line-clamp-2 text-xs text-neutral-600">{description}</p>}
+                {story && <p className="line-clamp-3 text-xs italic text-neutral-600">Story: {story}</p>}
                 <p className="truncate text-xs text-neutral-500">
                   {h.user.username ?? "(no username)"} · {h.user.email}
                 </p>
@@ -67,9 +73,12 @@ export async function PhotosTab() {
                       </ConfirmButton>
                     </form>
                   )}
-                  {(title || description) && (
+                  {(title || description || story) && (
                     <form action={adminClearPinText.bind(null, h.id)}>
-                      <ConfirmButton message={`Clear the name and description on pin #${h.pin.number}?`} className={DANGER}>
+                      <ConfirmButton
+                        message={`Clear the name and description on pin #${h.pin.number}, and stop showing its story?`}
+                        className={DANGER}
+                      >
                         Clear name &amp; text
                       </ConfirmButton>
                     </form>
@@ -85,7 +94,7 @@ export async function PhotosTab() {
 }
 
 export async function SeriesTab() {
-  const [allSeries, images] = await Promise.all([
+  const [allSeries, itemImages, boxImages] = await Promise.all([
     prisma.series.findMany({
       orderBy: { createdAt: "desc" },
       include: { creator: { select: { username: true } }, _count: { select: { items: true } } },
@@ -96,7 +105,34 @@ export async function SeriesTab() {
       take: 200,
       include: { series: { select: { name: true } } },
     }),
+    prisma.series.findMany({
+      where: { boxImagePath: { not: null } },
+      orderBy: { boxImageAddedAt: "desc" },
+      take: 200,
+      select: { id: true, name: true, boxImageBy: true, boxImageAddedAt: true },
+    }),
   ]);
+  // Design pictures and blind-box pictures in one newest-first list.
+  const images = [
+    ...itemImages.map((i) => ({
+      key: `item-${i.id}`,
+      src: `/api/series-items/${i.id}/image?v=${i.imageAddedAt?.getTime() ?? 0}`,
+      seriesId: i.seriesId,
+      title: `${i.series.name}: ${i.label}`,
+      imageBy: i.imageBy,
+      addedAt: i.imageAddedAt,
+      remove: adminRemoveSeriesImage.bind(null, i.id),
+    })),
+    ...boxImages.map((s) => ({
+      key: `box-${s.id}`,
+      src: `/api/series/${s.id}/box-image?v=${s.boxImageAddedAt?.getTime() ?? 0}`,
+      seriesId: s.id,
+      title: `${s.name}: the blind box`,
+      imageBy: s.boxImageBy,
+      addedAt: s.boxImageAddedAt,
+      remove: adminRemoveSeriesBoxImage.bind(null, s.id),
+    })),
+  ].sort((a, b) => (b.addedAt?.getTime() ?? 0) - (a.addedAt?.getTime() ?? 0));
   const uploaderIds = [...new Set(images.map((i) => i.imageBy).filter((id): id is string => !!id))];
   const uploaders = new Map(
     (await prisma.user.findMany({ where: { id: { in: uploaderIds } }, select: { id: true, username: true, email: true } })).map(
@@ -108,7 +144,9 @@ export async function SeriesTab() {
     <section className="mt-6 flex flex-col gap-10">
       <div>
         <h2 className="text-lg font-semibold">Pictures added to series pins</h2>
-        <p className="text-sm text-neutral-600">Newest first. Anyone signed in can add one to a pin that has none.</p>
+        <p className="text-sm text-neutral-600">
+          Newest first, including blind-box pictures. Anyone signed in can add one where there&apos;s none.
+        </p>
         {images.length === 0 ? (
           <p className="mt-3 text-sm text-neutral-500">None yet.</p>
         ) : (
@@ -116,18 +154,18 @@ export async function SeriesTab() {
             {images.map((i) => {
               const u = i.imageBy ? uploaders.get(i.imageBy) : undefined;
               return (
-                <li key={i.id} className="flex flex-col gap-1 text-xs">
+                <li key={i.key} className="flex flex-col gap-1 text-xs">
                   {/* eslint-disable-next-line @next/next/no-img-element -- public series image route */}
                   <img
-                    src={`/api/series-items/${i.id}/image?v=${i.imageAddedAt?.getTime() ?? 0}`}
+                    src={i.src}
                     alt=""
                     className="aspect-square w-full rounded object-cover"
                   />
                   <Link href={`/series/${i.seriesId}?view=all`} className="truncate font-medium hover:underline">
-                    {i.series.name}: {i.label}
+                    {i.title}
                   </Link>
                   <span className="truncate text-neutral-500">by {u ? `${u.username ?? "?"} · ${u.email}` : "unknown"}</span>
-                  <form action={adminRemoveSeriesImage.bind(null, i.id)}>
+                  <form action={i.remove}>
                     <ConfirmButton message="Remove this picture?" className={DANGER}>
                       Remove picture
                     </ConfirmButton>

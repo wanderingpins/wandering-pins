@@ -565,7 +565,7 @@ Bots were submitting the sign-in form with arbitrary addresses, each one sending
 
 The rebrand (`98ddce3`) adds 11 pure-logic tests in `src/lib/pin-card-style.test.ts`. Before it shipped, only that file and `pin-directory.test.ts` were run (16 passing), plus `tsc`, `eslint`, and a full `npm run build` — **the full suite was not run**, because the integration tests touch the real production DB and nothing in that commit changed what they cover.
 
-## Series checklist + home page (2026-11-16, after `18d56b2`) — not yet pushed
+## Series checklist + home page (2026-11-16, after `18d56b2`) — live on `main` (`635e5c5`)
 
 - **Series detail page** is now a cork board by default (`?layout=list` for the plain list; `ViewToggle` takes a `param` since `view` already means whose checklist). Collected designs are pinned prints at a per-item tilt (`seriesTileStyle` in `pin-card-style.ts`, ±5°) with an enamel name pill; missing ones are a see-through dashed outline saying "Not collected yet". Buttons are enamel-style ("I have this!", "It's this one!" when arriving via `linkPin`, navy "✕ Remove my claim").
 - **Your own photos on your own checklist, no DB change**: a claimed design linked to a pin you currently hold shows that holding's private photo (`/api/holdings/{id}/photos/{photoId}`, auth-gated, so only you can load it). Everyone else, and the "All pins" view, sees the series picture. "Use my pin's photo" copies yours into the series picture for everyone; a note under the photo controls says so.
@@ -573,3 +573,40 @@ The rebrand (`98ddce3`) adds 11 pure-logic tests in `src/lib/pin-card-style.test
 - **Removing a design** (`canRemoveSeriesItem` in `lib/series.ts`, shared by the action and the page): whoever added it can remove it while nobody else has claimed it (their own claim is deleted with it); after that only an admin. Confirm dialog; the item's picture file is deleted too.
 - **Home page**: six enamel-pin links (Browse pins, Series, My pins / Settings, About, How it works), three per side from `lg`, two rows of three on tablets, one column on phones. Footer no longer repeats "Series" (it's in the header).
 - Verified locally signed out only (catalog, a collector's checklist, list view, phone/tablet/desktop home). The signed-in parts (picker, your-photo tiles, copy button, remove rule) need a live check.
+
+## Pin privacy, state-only places, blind-box pictures, new-pin form, Edit series (2026-11-17, after `635e5c5`) — pushed to `main`, migration applied
+
+Migration `20261117000000_privacy_and_box_images` (additive columns only). Run its SQL in the
+Supabase SQL editor **before** this code deploys, then `npx prisma migrate resolve --applied
+20261117000000_privacy_and_box_images`.
+
+- **Private pins** (`PinHolding.isPrivate`, per holder, per stretch). Strangers see that stretch as
+  "a collector" in "Somewhere private", with no map dots. While it's the open holding the pin's
+  name/description/front photo and its "Part of a series" link are hidden too
+  (`/api/pins/{n}/photo` 404s), and the pin is left off `/pins`. The next holder chooses again for
+  theirs. Switches: on the pin page (current holder), on `/holdings/{id}#privacy` (any stretch,
+  released or not), and a checkbox on the register/claim form.
+- **Only show the state** (`regionOnly` + `regionLabel/Lat/Lng` on holdings and check-ins).
+  `placeLabel/lat/lng` still hold the town (owner-only when hidden) so location verification keeps
+  working; the public sees the state from `regionForPoint` (MapTiler reverse geocode, region
+  feature, or the country where there's none). Per-place switches on the holding page; a checkbox on
+  every "Where?" box; Settings → Privacy "Always show my places as the state" pre-ticks it and, when
+  switched on, converts every existing place (switching it off only changes the default).
+- **The seam**: every public place/name goes through `publicPlace`/`publicHolderName` in
+  `src/lib/public-pin.ts` (fails closed if a region is missing). `PinView` shows your own stretches
+  as they really are, plus an "others see: …" note. My Pins' "current location" of a pin you passed
+  on also goes through it.
+- **Blind-box picture** (`Series.boxImagePath/By/AddedAt`), same rules as design pictures; served
+  by `/api/series/{id}/box-image`; shown as a pinned snapshot beside the series title, or a "Sold in
+  blind boxes?" offer when there's none. Reviewed on /admin alongside the design pictures.
+- **Shared stories** (`HoldingNote.isPublic`, same migration): "Tell the story" (the old private
+  notes) can be shared on the pin's page, off by default; shown only for the open, non-private
+  holding. Switches on the pin page panel, the holding page, and the new-pin form. /admin's
+  "Clear name & text" also unshares it (the story itself stays, private to its writer).
+- **New-pin form** (`PinRegistrationForm`, used by /pins/new and /s/{code}/claim): public name,
+  description and front photo at the top (photo cropped on the phone, processed before the pin is
+  created — `src/lib/register-photo.ts`), then how/when/where with a "general city only" note and
+  the privacy checkboxes, then "Tell the story" with its share checkbox.
+- **"Edit series" mode** on /series/{id} (reuses `PinEditProvider`): "Remove from series", the add
+  form and replacing/removing an existing picture only show after pressing it. Adding a picture
+  where there's none stays available. Meant to become subscriber-only later.

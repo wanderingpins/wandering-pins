@@ -1,5 +1,22 @@
 import { describe, expect, it } from "vitest";
-import { toPublicHolding, toPublicCheckIn } from "./public-pin";
+import { publicPlace, toPublicHolding, toPublicCheckIn } from "./public-pin";
+
+const TOWN = {
+  placeLabel: "Ono, Shasta, United States",
+  lat: 40.48,
+  lng: -122.62,
+  regionOnly: false,
+  regionLabel: null,
+  regionLat: null,
+  regionLng: null,
+};
+const STATE_ONLY = {
+  ...TOWN,
+  regionOnly: true,
+  regionLabel: "California, United States",
+  regionLat: 36.7,
+  regionLng: -118.76,
+};
 
 describe("toPublicHolding", () => {
   // The DoD in brief section 12 requires a test asserting no user-typed
@@ -16,8 +33,13 @@ describe("toPublicHolding", () => {
       placeLabel: "Orlando, FL",
       lat: 28.5,
       lng: -81.4,
+      regionOnly: false,
+      regionLabel: null,
+      regionLat: null,
+      regionLng: null,
       releasedAt: null,
       verified: true,
+      isPrivate: false,
       user: { username: "tim", showNamePublicly: true },
       // Simulates a future query accidentally including private relations.
       title: { title: "My secret nickname for this pin" },
@@ -31,10 +53,8 @@ describe("toPublicHolding", () => {
     expect(result).toEqual({
       acquiredAt: new Date("2024-03-01"),
       acquiredVia: "BOUGHT",
-      placeLabel: "Orlando, FL",
+      place: { label: "Orlando, FL", lat: 28.5, lng: -81.4 },
       holderDisplayName: "tim",
-      lat: 28.5,
-      lng: -81.4,
       isOpen: true,
       verified: true,
     });
@@ -48,16 +68,63 @@ describe("toPublicHolding", () => {
 
   it("honours show_name_publicly", () => {
     const holding = {
+      ...TOWN,
       acquiredAt: new Date(),
       acquiredVia: "TRADED" as const,
-      placeLabel: "Denver, CO",
-      lat: 39.7,
-      lng: -105.0,
       releasedAt: new Date(),
       verified: false,
+      isPrivate: false,
       user: { username: "sarah", showNamePublicly: false },
     };
     expect(toPublicHolding(holding).holderDisplayName).toBe("a collector");
+  });
+
+  it("a private stretch shows no name and no place at all", () => {
+    const holding = {
+      ...TOWN,
+      acquiredAt: new Date(),
+      acquiredVia: "BOUGHT" as const,
+      releasedAt: null,
+      verified: true,
+      isPrivate: true,
+      user: { username: "tim", showNamePublicly: true },
+    };
+    const result = toPublicHolding(holding);
+    expect(result.place).toBeNull();
+    expect(result.holderDisplayName).toBe("a collector");
+    expect(JSON.stringify(result)).not.toContain("Ono");
+    expect(JSON.stringify(result)).not.toContain("tim");
+    expect(JSON.stringify(result)).not.toContain("40.48");
+  });
+
+  it("'only show the state' shows the state and its coordinates, never the town's", () => {
+    const holding = {
+      ...STATE_ONLY,
+      acquiredAt: new Date(),
+      acquiredVia: "BOUGHT" as const,
+      releasedAt: null,
+      verified: false,
+      isPrivate: false,
+      user: { username: "tim", showNamePublicly: true },
+    };
+    const result = toPublicHolding(holding);
+    expect(result.place).toEqual({ label: "California, United States", lat: 36.7, lng: -118.76 });
+    expect(JSON.stringify(result)).not.toContain("Ono");
+    expect(JSON.stringify(result)).not.toContain("40.48");
+  });
+});
+
+describe("publicPlace", () => {
+  it("fails closed when the state is wanted but missing", () => {
+    expect(publicPlace({ ...TOWN, regionOnly: true }, false)).toBeNull();
+  });
+
+  it("shows the town when nothing is hidden", () => {
+    expect(publicPlace(TOWN, false)).toEqual({ label: "Ono, Shasta, United States", lat: 40.48, lng: -122.62 });
+  });
+
+  it("private wins over everything", () => {
+    expect(publicPlace(STATE_ONLY, true)).toBeNull();
   });
 });
 
@@ -68,8 +135,13 @@ describe("toPublicCheckIn", () => {
       placeLabel: "Denver, CO",
       lat: 39.7,
       lng: -105.0,
+      regionOnly: false,
+      regionLabel: null,
+      regionLat: null,
+      regionLng: null,
       verified: true,
       holder: { username: "tim", showNamePublicly: true },
+      holderIsPrivate: false,
       // Simulates a future query accidentally including private relations.
       note: { body: "Left it on a friend's desk for a week" },
       photos: [{ url: "private/holding-photos/def.jpg" }],
@@ -80,10 +152,8 @@ describe("toPublicCheckIn", () => {
 
     expect(result).toEqual({
       loggedAt: new Date("2024-04-10"),
-      placeLabel: "Denver, CO",
+      place: { label: "Denver, CO", lat: 39.7, lng: -105.0 },
       holderDisplayName: "tim",
-      lat: 39.7,
-      lng: -105.0,
       verified: true,
     });
     expect(result).not.toHaveProperty("note");
@@ -94,13 +164,25 @@ describe("toPublicCheckIn", () => {
 
   it("honours show_name_publicly", () => {
     const checkIn = {
+      ...TOWN,
       loggedAt: new Date(),
-      placeLabel: "Osaka, Japan",
-      lat: 34.7,
-      lng: 135.5,
       verified: false,
       holder: { username: "sarah", showNamePublicly: false },
+      holderIsPrivate: false,
     };
     expect(toPublicCheckIn(checkIn).holderDisplayName).toBe("a collector");
+  });
+
+  it("follows the parent holding's privacy", () => {
+    const checkIn = {
+      ...TOWN,
+      loggedAt: new Date(),
+      verified: false,
+      holder: { username: "tim", showNamePublicly: true },
+      holderIsPrivate: true,
+    };
+    const result = toPublicCheckIn(checkIn);
+    expect(result.place).toBeNull();
+    expect(result.holderDisplayName).toBe("a collector");
   });
 });

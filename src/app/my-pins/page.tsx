@@ -4,6 +4,7 @@ import type { AcquiredVia } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireAppUser } from "@/lib/auth";
 import { formatAcquisition } from "@/lib/timeline";
+import { PRIVATE_PLACE_LABEL, publicPlace } from "@/lib/public-pin";
 import { CorkWall } from "@/components/CorkWall";
 import { HoldingCard } from "@/components/HoldingCard";
 import { PinLookupForm } from "@/components/PinLookupForm";
@@ -40,9 +41,27 @@ export default async function MyPinsPage({ searchParams }: Props) {
   const pinIds = [...new Set(holdings.map((h) => h.pinId))];
   const openHoldings = await prisma.pinHolding.findMany({
     where: { pinId: { in: pinIds }, releasedAt: null, pending: false },
-    select: { pinId: true, placeLabel: true },
+    select: {
+      pinId: true,
+      userId: true,
+      isPrivate: true,
+      placeLabel: true,
+      lat: true,
+      lng: true,
+      regionOnly: true,
+      regionLabel: true,
+      regionLat: true,
+      regionLng: true,
+    },
   });
-  const currentLocationByPinId = new Map(openHoldings.map((h) => [h.pinId, h.placeLabel]));
+  // Someone else holding it now only shows what they've made public
+  // (PinHolding.isPrivate / regionOnly); your own current stretch shows as is.
+  const currentLocationByPinId = new Map(
+    openHoldings.map((h) => [
+      h.pinId,
+      h.userId === user.id ? h.placeLabel : (publicPlace(h, h.isPrivate)?.label ?? PRIVATE_PLACE_LABEL),
+    ])
+  );
 
   // Props both views share, per section: a pending claim has no real current
   // location, and only "Ever had" distinguishes released from still-held.

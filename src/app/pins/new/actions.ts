@@ -3,8 +3,9 @@
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireAppUser } from "@/lib/auth";
-import { geocodePlace } from "@/lib/geocode";
-import { createHoldingFromForm, parseRegisterForm, type RegisterState } from "@/lib/register-form";
+import { geocodePlace, regionFieldsFor } from "@/lib/geocode";
+import { createHoldingFromForm, parseRegisterForm, REGION_LOOKUP_FAILED, type RegisterState } from "@/lib/register-form";
+import { prepareRegisterPhoto, saveRegisterPhoto } from "@/lib/register-photo";
 
 // Adds a pin to the user's account with no sticker — the free path for a pin
 // they own but haven't got a passport for. It records exactly one holding
@@ -26,18 +27,24 @@ export async function createPinWithoutSticker(
   if (!geocoded) {
     return { status: "error", message: "Couldn't find that place — try a city name." };
   }
+  const region = await regionFieldsFor(geocoded, parsed.data.regionOnly);
+  if (!region.ok) return { status: "error", message: REGION_LOOKUP_FAILED };
+  const place = { ...geocoded, ...region.fields };
+  const photo = await prepareRegisterPhoto(formData);
+  if (!photo.ok) return { status: "error", message: photo.message };
 
-  const pinNumber = await prisma.$transaction(async (tx) => {
+  const { pinNumber, holdingId } = await prisma.$transaction(async (tx) => {
     const pin = await tx.pin.create({ data: {}, select: { id: true, number: true } });
-    await createHoldingFromForm(tx, {
+    const holdingId = await createHoldingFromForm(tx, {
       pinId: pin.id,
       userId: user.id,
       data: parsed.data,
-      place: geocoded,
+      place,
       pending: false,
     });
-    return pin.number;
+    return { pinNumber: pin.number, holdingId };
   });
+  await saveRegisterPhoto(holdingId, photo.buffer);
 
   redirect(`/p/${pinNumber}`);
 }

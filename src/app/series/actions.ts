@@ -223,6 +223,57 @@ export async function removeSeriesItemImage(seriesId: string, seriesItemId: stri
   revalidatePath(`/series/${seriesId}`);
 }
 
+// --- The blind-box picture on a series (see Series.boxImagePath) ---
+// Same rules as a design's picture above: anyone signed in can add the first
+// one, then only whoever added it (or an admin) can replace or remove it.
+
+export async function setSeriesBoxImage(seriesId: string, _prevState: ActionState, formData: FormData): Promise<ActionState> {
+  const user = await requireAppUser(`/series/${seriesId}`);
+  const series = await prisma.series.findUnique({ where: { id: seriesId } });
+  if (!series) return { status: "error", message: "That series doesn't exist." };
+  if (series.boxImagePath && series.boxImageBy !== user.id && !isAdminEmail(user.email)) {
+    return { status: "error", message: "Someone else added this picture, so only they can change it." };
+  }
+
+  const file = formData.get("photo");
+  if (!(file instanceof File) || file.size === 0) return { status: "error", message: "Choose a picture first." };
+  if (!ALLOWED_IMAGE_TYPES.includes(file.type)) return { status: "error", message: "Please use a JPEG, PNG, or WebP image." };
+  if (file.size > MAX_RAW_UPLOAD_BYTES) return { status: "error", message: "That image is too large (max 10MB)." };
+
+  const limitMessage = await assertNotOverCreationLimit(user.id);
+  if (limitMessage) return { status: "error", message: limitMessage };
+
+  let processed: Buffer;
+  try {
+    processed = await processHoldingPhoto(Buffer.from(await file.arrayBuffer()));
+  } catch {
+    return { status: "error", message: "That file doesn't look like a valid image." };
+  }
+  const path = await uploadHoldingPhoto(`series-boxes/${seriesId}`, processed, "image/jpeg");
+
+  await prisma.series.update({
+    where: { id: seriesId },
+    data: { boxImagePath: path, boxImageBy: user.id, boxImageAddedAt: new Date() },
+  });
+  if (series.boxImagePath) await deleteHoldingPhoto(series.boxImagePath).catch(() => undefined);
+
+  revalidatePath(`/series/${seriesId}`);
+  return { status: "ok" };
+}
+
+export async function removeSeriesBoxImage(seriesId: string) {
+  const user = await requireAppUser(`/series/${seriesId}`);
+  const series = await prisma.series.findUnique({ where: { id: seriesId } });
+  if (!series?.boxImagePath) return;
+  if (series.boxImageBy !== user.id && !isAdminEmail(user.email)) return;
+  await prisma.series.update({
+    where: { id: seriesId },
+    data: { boxImagePath: null, boxImageBy: null, boxImageAddedAt: null },
+  });
+  await deleteHoldingPhoto(series.boxImagePath).catch(() => undefined);
+  revalidatePath(`/series/${seriesId}`);
+}
+
 // Link (or re-link, or unlink with an empty value) one of your own pins to an
 // item you've already claimed — the "Your pin" picker on the series page. The
 // claim itself already exists, so this only sets linkedPinId; the pin's page

@@ -37,10 +37,11 @@ export function DetailsForm({
       </label>
 
       <p className="inline-flex items-center gap-1.5 self-start rounded-full bg-neutral-100 px-3 py-1 text-xs font-medium text-neutral-600">
-        🔒 Only you can see this
+        🔒 Only you can see this, unless you share your story below
       </p>
       <label className="flex flex-col gap-1 text-sm">
-        Notes
+        Tell the story
+        <span className="text-xs text-neutral-500">Where you got it, who you traded with, why it matters to you.</span>
         <textarea
           name="notes"
           rows={4}

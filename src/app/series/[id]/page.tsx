@@ -11,6 +11,7 @@ import { seriesTileStyle } from "@/lib/pin-card-style";
 import { claimItem, unclaimItem, deleteSeriesItem, setClaimLinkedPin } from "@/app/series/actions";
 import { AddSeriesItemForm } from "@/components/AddSeriesItemForm";
 import { ConfirmButton } from "@/components/ConfirmButton";
+import { EditModeButton, EditOnly, PinEditProvider, ViewOnly } from "@/components/PinEditMode";
 import { CorkBoard } from "@/components/CorkBoard";
 import { PinNamePill } from "@/components/PinNamePill";
 import { PushPin } from "@/components/PushPin";
@@ -242,14 +243,16 @@ export default async function SeriesDetailPage({ params, searchParams }: Props) 
           />
         )}
         {canRemove && (
-          <form action={deleteSeriesItem.bind(null, seriesId, item.id)}>
-            <ConfirmButton
-              message={`Take "${item.label}" out of ${seriesName}? Any claims on it go too.`}
-              className="text-[11px] text-neutral-400 hover:text-red-600 hover:underline"
-            >
-              Remove from series
-            </ConfirmButton>
-          </form>
+          <EditOnly>
+            <form action={deleteSeriesItem.bind(null, seriesId, item.id)} className="pt-1">
+              <ConfirmButton
+                message={`Take "${item.label}" out of ${seriesName}? Any claims on it go too.`}
+                className="rounded-full border border-red-600/70 px-3 py-1 text-xs font-medium text-red-600 hover:bg-red-600 hover:text-white"
+              >
+                ✕ Remove from series
+              </ConfirmButton>
+            </form>
+          </EditOnly>
         )}
       </>
     );
@@ -257,14 +260,60 @@ export default async function SeriesDetailPage({ params, searchParams }: Props) 
 
   return (
     <main className="mx-auto w-full max-w-5xl px-4 py-10">
+      {/* "Edit series" mode: removing designs, adding new ones and changing
+          existing pictures only show up after pressing it, so nothing gets
+          taken out by a stray tap. (Later: subscribers only.) */}
+      <PinEditProvider>
       <Link href="/series" className="text-sm text-neutral-500 hover:text-white">
         &larr; All series
       </Link>
-      <h1 className="mt-2 text-2xl font-semibold">{series.name}</h1>
-      <p className="mt-1 text-sm text-neutral-600">
-        {total} pin{total === 1 ? "" : "s"} in this series · {collectors.length} collector
-        {collectors.length === 1 ? "" : "s"}
-      </p>
+      <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h1 className="mt-2 text-2xl font-semibold">{series.name}</h1>
+          <p className="mt-1 text-sm text-neutral-600">
+            {total} pin{total === 1 ? "" : "s"} in this series · {collectors.length} collector
+            {collectors.length === 1 ? "" : "s"}
+          </p>
+        </div>
+
+        {/* The unopened blind box (Series.boxImagePath): a snapshot pinned up
+            beside the title, or, with none yet, an offer to add one. */}
+        {series.boxImagePath ? (
+          <figure className="flex w-44 shrink-0 flex-col items-center gap-3 self-center sm:self-start">
+            <div className="relative w-40 rotate-3 rounded-sm bg-cream p-2 pb-1 ring-[3px] ring-gold shadow-[0_4px_0_#8E6E14,0_9px_10px_rgba(0,0,0,0.42)]">
+              <PushPin color="#B13F3A" className="-top-2 left-1/2 z-10 -translate-x-1/2" />
+              {/* eslint-disable-next-line @next/next/no-img-element -- public series image route */}
+              <img
+                src={`/api/series/${series.id}/box-image?v=${series.boxImageAddedAt?.getTime() ?? 0}`}
+                alt={`The unopened ${series.name} blind box`}
+                className="aspect-square w-full object-cover"
+              />
+              <figcaption className="text-center font-hand text-xl leading-8 text-ink">The blind box</figcaption>
+            </div>
+            {viewerId && (
+              <SeriesItemImageControl
+                seriesId={seriesId}
+                itemId={null}
+                hasImage
+                canChange={series.boxImageBy === viewerId || viewerIsAdmin}
+              />
+            )}
+          </figure>
+        ) : (
+          viewerId && (
+            <div className="flex w-full flex-col items-center gap-1 rounded-md border-2 border-dashed border-neutral-300 px-4 py-3 text-center sm:w-56">
+              <p className="text-sm text-neutral-600">📦 Sold in blind boxes?</p>
+              <SeriesItemImageControl
+                seriesId={seriesId}
+                itemId={null}
+                hasImage={false}
+                canChange
+                addLabel="+ Add a picture of the unopened box"
+              />
+            </div>
+          )
+        )}
+      </div>
 
       {linkPinHolding && (
         <p className="mt-4 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800">
@@ -302,6 +351,7 @@ export default async function SeriesDetailPage({ params, searchParams }: Props) 
             params={{ view: subject ? undefined : view, collector: subject && !subject.isViewer ? collector : undefined, linkPin }}
           />
         )}
+        {viewerId && <EditModeButton label="Edit series" className="sm:ml-auto" />}
       </div>
       {subject && (
         <p className="mt-3 text-sm text-neutral-600">
@@ -395,9 +445,25 @@ export default async function SeriesDetailPage({ params, searchParams }: Props) 
         </ul>
       )}
 
-      <div className="mt-8">
-        <AddSeriesItemForm seriesId={series.id} />
-      </div>
+      {viewerId && total > 0 ? (
+        <>
+          <EditOnly>
+            <div className="mt-8">
+              <AddSeriesItemForm seriesId={series.id} />
+            </div>
+          </EditOnly>
+          <ViewOnly>
+            <p className="mt-8 text-sm text-neutral-500">
+              Missing a design, or need to take one out? Press <strong className="text-cream">Edit series</strong>{" "}
+              above.
+            </p>
+          </ViewOnly>
+        </>
+      ) : (
+        <div className="mt-8">
+          <AddSeriesItemForm seriesId={series.id} />
+        </div>
+      )}
 
       <section className="mt-12" id="collectors">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-500">Who collects this series</h2>
@@ -434,6 +500,7 @@ export default async function SeriesDetailPage({ params, searchParams }: Props) 
           </ul>
         )}
       </section>
+      </PinEditProvider>
     </main>
   );
 }

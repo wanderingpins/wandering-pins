@@ -37,6 +37,7 @@ async function loadAllDirectoryPins(): Promise<DirectoryPin[]> {
         select: {
           releasedAt: true,
           verified: true,
+          isPrivate: true,
           user: { select: { username: true, showNamePublicly: true } },
           title: { select: { title: true, description: true } },
           photos: { where: { kind: "FRONT" }, select: { id: true }, take: 1 },
@@ -46,7 +47,11 @@ async function loadAllDirectoryPins(): Promise<DirectoryPin[]> {
     },
   });
 
-  return pins.map((pin) => {
+  // A pin whose current holder keeps it private (PinHolding.isPrivate) isn't
+  // listed at all; its page still exists for anyone who has the number.
+  const listed = pins.filter((pin) => !pin.holdings.some((h) => h.releasedAt === null && h.isPrivate));
+
+  return listed.map((pin) => {
     const openHolding = pin.holdings.find((h) => h.releasedAt === null);
     const verifiedCount = pin.holdings.reduce(
       (sum, h) => sum + (h.verified ? 1 : 0) + h.checkIns.filter((c) => c.verified).length,

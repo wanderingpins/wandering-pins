@@ -30,7 +30,9 @@ export async function GET(request: Request, { params }: Params) {
     where: { number: pinNumber },
     include: { holdings: { where: { releasedAt: null, pending: false }, include: { photos: true } } },
   });
-  const frontPhoto = pin?.holdings[0]?.photos.find((p) => p.kind === "FRONT");
+  // A holder keeping the pin private (PinHolding.isPrivate) hides its photo too.
+  const open = pin?.holdings[0];
+  const frontPhoto = open && !open.isPrivate ? open.photos.find((p) => p.kind === "FRONT") : undefined;
   if (!frontPhoto) return new Response("Not found", { status: 404 });
 
   const downloaded = await downloadHoldingPhoto(frontPhoto.url);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useRef, useState } from "react";
+import { startTransition, useActionState, useRef, useState } from "react";
 import type { Area } from "react-easy-crop";
 import { uploadPhoto, type ActionState } from "./actions";
 import { PhotoCropModal } from "./PhotoCropModal";
@@ -64,7 +64,7 @@ export function PhotoUploadForm({ holdingId }: { holdingId: string }) {
     formData.set("kind", kind);
     formData.set("photo", new File([blob], "photo.jpg", { type: "image/jpeg" }));
     closeCropper();
-    formAction(formData);
+    startTransition(() => formAction(formData));
   }
 
   return (
