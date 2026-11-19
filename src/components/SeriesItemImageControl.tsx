@@ -54,6 +54,17 @@ export function SeriesItemImageControl({
   const [imageSrc, setImageSrc] = useState<string | null>(null);
   const [pickError, setPickError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
+
+  // Two explicit buttons, like the other photo pickers: newer Android phones
+  // open a gallery-only picker for a plain image input, so the camera needs
+  // its own button that sets `capture` before opening.
+  function openPicker(capture?: "environment") {
+    const input = inputRef.current;
+    if (!input) return;
+    if (capture) input.setAttribute("capture", capture);
+    else input.removeAttribute("capture");
+    input.click();
+  }
   // On the series page, replacing or removing an existing picture waits for
   // "Edit series" (see PinEditMode), so a stray tap can't wipe one.
   const editing = useEditMode();
@@ -103,9 +114,18 @@ export function SeriesItemImageControl({
           </button>
         </form>
       )}
-      <button type="button" className={link} disabled={pending || copyPending} onClick={() => inputRef.current?.click()}>
-        {pending ? "Uploading…" : hasImage ? "Upload a different picture" : addLabel}
-      </button>
+      {pending ? (
+        <span className="text-xs text-neutral-500">Uploading…</span>
+      ) : (
+        <>
+          <button type="button" className={link} disabled={copyPending} onClick={() => openPicker("environment")}>
+            📷 Take a photo
+          </button>
+          <button type="button" className={link} disabled={copyPending} onClick={() => openPicker()}>
+            {hasImage ? "Upload a different picture" : addLabel}
+          </button>
+        </>
+      )}
       {hasImage && (
         <form action={itemId ? removeSeriesItemImage.bind(null, seriesId, itemId) : removeSeriesBoxImage.bind(null, seriesId)}>
           <button type="submit" className="text-xs text-neutral-500 hover:text-red-600 hover:underline">

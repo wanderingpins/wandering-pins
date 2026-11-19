@@ -48,6 +48,17 @@ export function PinRegistrationForm({
   const [photoError, setPhotoError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
+  // Two explicit buttons, like the other photo pickers: newer Android phones
+  // open a gallery-only picker for a plain image input, so the camera needs
+  // its own button that sets `capture` before opening.
+  function openPicker(capture?: "environment") {
+    const input = fileInputRef.current;
+    if (!input) return;
+    if (capture) input.setAttribute("capture", capture);
+    else input.removeAttribute("capture");
+    input.click();
+  }
+
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     e.target.value = "";
@@ -121,8 +132,11 @@ export function PinRegistrationForm({
             {/* eslint-disable-next-line @next/next/no-img-element -- a local blob preview */}
             <img src={photo.preview} alt="Your pin" className="size-24 rounded-md object-cover ring-2 ring-gold" />
             <div className="flex flex-col items-start gap-1">
-              <button type="button" onClick={() => fileInputRef.current?.click()} className="text-accent hover:underline">
-                Choose a different photo
+              <button type="button" onClick={() => openPicker("environment")} className="text-accent hover:underline">
+                📷 Take a new photo
+              </button>
+              <button type="button" onClick={() => openPicker()} className="text-accent hover:underline">
+                🖼️ Choose a different photo
               </button>
               <button type="button" onClick={removePhoto} className="text-neutral-500 hover:text-red-600 hover:underline">
                 Remove photo
@@ -130,13 +144,22 @@ export function PinRegistrationForm({
             </div>
           </div>
         ) : (
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            className="self-start rounded-md border border-dashed border-neutral-300 px-4 py-3 text-neutral-700 hover:bg-neutral-50"
-          >
-            + Add a photo of the front
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => openPicker("environment")}
+              className="rounded-md border border-dashed border-neutral-300 px-4 py-3 text-neutral-700 hover:bg-neutral-50"
+            >
+              📷 Take a photo
+            </button>
+            <button
+              type="button"
+              onClick={() => openPicker()}
+              className="rounded-md border border-dashed border-neutral-300 px-4 py-3 text-neutral-700 hover:bg-neutral-50"
+            >
+              🖼️ Choose from library
+            </button>
+          </div>
         )}
         <span className="text-xs text-neutral-500">
           Shown on the pin&apos;s page and on Browse pins while you have it.
